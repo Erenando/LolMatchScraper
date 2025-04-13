@@ -9,7 +9,8 @@ in ./sheets/Scripts you can find: <br>
 |CGFormater.py | parses the data.json in a readable table and also creates a csv to copy the data manualy|
 |CGAPI.py      |connects to your googleSheets and pastes the data without overwriting existing data|
 |CGAPIkeys.json|https://youtu.be/zCEJurLGFRk?si=d3y0o-ChmPQCt0Vu&t=115 follow the tutorial until min6:45|
-### execute 
+### how to execute 
+follow the [tutorial](https://youtu.be/zCEJurLGFRk?si=d3y0o-ChmPQCt0Vu&t=115)until min 6:45
 ```
 pip install lcu-driver requests google-api-python-client google-auth-httplib2 google-auth-oauthlib gspread
 ```
