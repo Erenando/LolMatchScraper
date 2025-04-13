@@ -26,4 +26,4 @@ python CGAPI.py
 
 
 
-### author: namophoenix
+### author: gemini xD
