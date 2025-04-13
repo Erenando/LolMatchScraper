@@ -11,7 +11,7 @@ in ./sheets/Scripts you can find: <br>
 |CGAPIkeys.json|https://youtu.be/zCEJurLGFRk?si=d3y0o-ChmPQCt0Vu&t=115 follow the tutorial until min6:45|
 ### how to execute 
 1.
-follow the [tutorial](https://youtu.be/zCEJurLGFRk?si=d3y0o-ChmPQCt0Vu&t=115) until min 6:45
+  follow the [tutorial](https://youtu.be/zCEJurLGFRk?si=d3y0o-ChmPQCt0Vu&t=115) until min 6:45
 
 2.
 ```
@@ -22,6 +22,8 @@ pip install lcu-driver requests google-api-python-client google-auth-httplib2 go
 python CGAPI.py
 ```
 4. 
-copy the gameid from your custom game inside your leagueclient (top right) and taddaaa
+  copy the gameid from your custom game inside your leagueclient (top middle) and taddaaa
+
+
 
 ### author: namophoenix
