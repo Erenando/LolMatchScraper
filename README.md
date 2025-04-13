@@ -12,6 +12,7 @@ in ./sheets/Scripts you can find: <br>
 ### how to execute 
 1.
 follow the [tutorial](https://youtu.be/zCEJurLGFRk?si=d3y0o-ChmPQCt0Vu&t=115) until min 6:45
+
 2.
 ```
 pip install lcu-driver requests google-api-python-client google-auth-httplib2 google-auth-oauthlib gspread
