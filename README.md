@@ -1,4 +1,4 @@
-## Project: /sheets
+## Project: CG2Sheets
 ### CustomGames to Google Sheets 
 A bunch of scipts that helps you logging your Scrim data onto your GoogleSheets
 
