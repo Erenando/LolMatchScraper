@@ -1,7 +1,8 @@
 import json
 import csv # Importiert das Modul zum Arbeiten mit CSV-Dateien
 import os  # Importiert das os Modul für Dateipfad-Operationen
-
+import requests
+from LCUDriver import fetch_game_data, get_content
 # --- Konfiguration ---
 # Name der JSON-Datei, die die Spieldaten enthält
 input_file_path = 'message.txt'
@@ -11,13 +12,31 @@ output_file_path = 'game_stats_all_players.csv'
 # Ändere dies zu ',' wenn du ein Standard-Komma-getrenntes CSV möchtest.
 csv_delimiter = ';'
 
+url = "https://ddragon.leagueoflegends.com/cdn/15.7.1/data/en_US/champion.json"
+
+# API-Daten abrufen
+response = requests.get(url)
+data = response.json()
+champions = data['data']
+# Liste im Format [Name, Key] erstellen
+champion_list = [[champ['id'], champ['key']] for champ in champions.values()]
+
+# Ausgabe der Liste
+for entry in champion_list:
+    print(entry)
+
 # --- Daten laden ---
 try:
     # Öffnet die Eingabedatei im Lesemodus ('r') mit UTF-8-Kodierung
-    with open(input_file_path, 'r', encoding='utf-8') as f:
+    #with open(input_file_path, 'r', encoding='utf-8') as f:
         # Lädt die JSON-Daten aus der Datei
-        data = json.load(f)
-        print(f"Daten erfolgreich aus '{input_file_path}' geladen.")
+        #data = json.load(f)
+        #(f"Daten erfolgreich aus '{input_file_path}' geladen.")
+    gid = input("Welche gameId möchtest du abrufen? ")
+    fetch_game_data(gid)
+    print("Match-Daten:")
+    data = get_content()
+
 except FileNotFoundError:
     # Fehlermeldung, wenn die Datei nicht gefunden wird
     print(f"Fehler: Die Datei '{input_file_path}' wurde nicht gefunden.")
@@ -89,7 +108,8 @@ try:
             game_name = player_names.get(participant_id, f'UnknownPlayerID_{participant_id}')
 
             # Extrahiere die Statistiken (mit Standardwerten bei fehlenden Daten)
-            champion = champion_id if champion_id is not None else 'N/A'
+            champion_map = {champ['key']: champ['id'] for champ in champions.values()}
+            champion = champion_map.get(str(champion_id), str(champion_id)) if champion_id is not None else 'N/A'
             k = stats.get('kills', 0)
             d = stats.get('deaths', 0)
             a = stats.get('assists', 0)

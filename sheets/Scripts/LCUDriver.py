@@ -1,7 +1,9 @@
+import asyncio
 from lcu_driver import Connector
 
 connector = Connector()
-game_content = None  # globale Variable
+game_content = None
+game_id_to_fetch = None  # wird extern gesetzt
 
 async def get_data(connection, gameID):
     global game_content
@@ -14,26 +16,27 @@ async def get_data(connection, gameID):
 
 @connector.ready
 async def connect(connection):
+    global game_id_to_fetch
     print('LCU API is ready to be used.')
+
     summoner = await connection.request('get', '/lol-summoner/v1/current-summoner')
     if summoner.status != 200:
         print('Bitte im Client einloggen und Script neu starten...')
-    else:
-        print('fetching League Client data ...')
-        game_id = input("Bitte geben Sie eine gameId ein: ")
-        await get_data(connection, game_id)
+        return
+
+    if game_id_to_fetch:
+        print(f'Game-ID {game_id_to_fetch} wird abgerufen ...')
+        await get_data(connection, game_id_to_fetch)
+        connector.stop()  # optional: beende Verbindung danach
 
 @connector.close
 async def disconnect(_):
-    print('disconnected')
-
-def start_connector():
-    connector.start()
+    print('Verbindung zum League Client getrennt.')
 
 def get_content():
-    return game_content  # Zugriff auf globale Variable
+    return game_content
 
-# Start
-start_connector()
-# Beispiel: irgendwo anders im Code (funktioniert aber nur sinnvoll asynchron)
-# print(get_content())
+def fetch_game_data(game_id):
+    global game_id_to_fetch
+    game_id_to_fetch = game_id
+    connector.start()  # startet asynchron den ganzen Ablauf
