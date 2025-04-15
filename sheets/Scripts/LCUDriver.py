@@ -27,7 +27,7 @@ async def connect(connection):
     if game_id_to_fetch:
         print(f'Game-ID {game_id_to_fetch} wird abgerufen ...')
         await get_data(connection, game_id_to_fetch)
-        connector.stop()  # optional: beende Verbindung danach
+        await connector.stop()  # optional: beende Verbindung danach
 
 @connector.close
 async def disconnect(_):
