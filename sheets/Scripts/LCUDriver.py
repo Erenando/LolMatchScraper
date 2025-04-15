@@ -5,9 +5,9 @@ connector = Connector()
 game_content = None
 game_id_to_fetch = None  # wird extern gesetzt
 
-async def get_data(connection, gameID):
+async def get_data(connection, game_id):
     global game_content
-    response = await connection.request('GET', f'/lol-match-history/v1/games/{gameID}')
+    response = await connection.request('GET', f'/lol-match-history/v1/games/{game_id}')
     if response.status == 200:
         game_content = await response.json()
         print('Daten erfolgreich abgerufen')
@@ -27,7 +27,7 @@ async def connect(connection):
     if game_id_to_fetch:
         print(f'Game-ID {game_id_to_fetch} wird abgerufen ...')
         await get_data(connection, game_id_to_fetch)
-        connector.stop()  # optional: beende Verbindung danach
+        await connector.stop()  # optional: beende Verbindung danach
 
 @connector.close
 async def disconnect(_):
