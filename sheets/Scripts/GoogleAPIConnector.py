@@ -1,6 +1,7 @@
 import gspread
 from google.oauth2.service_account import Credentials
 from JSONParser import process_game
+from ROFLParser import process_replay_data
 
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_file("CGAPIkeys.json", scopes=scopes)
@@ -17,11 +18,16 @@ def get_next_free_row(start_row=5, col_index=2):
             return i
     return len(col_values) + 2
 
-def parse_game():
+def parse_game(parsing_option):
     game_id = input("Welche gameId möchtest du abrufen? ")
+    data_table = None
     try:
-        data_table = process_game(game_id)
-        if not data_table:
+        if parsing_option == "lcu":
+            data_table = process_game(game_id)
+        elif parsing_option == "replay":
+            rofl_id = input("Welche roflId möchtest du abrufen? ")
+            data_table = process_replay_data(rofl_id)
+        else:
             print(f"Keine Daten für Game ID {game_id} gefunden.")
 
         start_row = get_next_free_row()
