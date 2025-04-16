@@ -1,6 +1,6 @@
 import gspread
 from google.oauth2.service_account import Credentials
-from CGFormater import process_game
+from JSONParser import process_game
 
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_file("CGAPIkeys.json", scopes=scopes)
@@ -17,16 +17,16 @@ def get_next_free_row(start_row=5, col_index=2):
             return i
     return len(col_values) + 2
 
-game_id = input("Welche gameId möchtest du abrufen? ")
+def parse_game():
+    game_id = input("Welche gameId möchtest du abrufen? ")
+    try:
+        data_table = process_game(game_id)
+        if not data_table:
+            print(f"Keine Daten für Game ID {game_id} gefunden.")
 
-try:
-    data_table = process_game(game_id)
-    if not data_table:
-        print(f"Keine Daten für Game ID {game_id} gefunden.")
-
-    start_row = get_next_free_row()
-    cell_address = f"B{start_row}"
-    worksheet.update(range_name=cell_address, values=data_table)
-    print(f"Tabelle für Game ID {game_id} erfolgreich eingefügt ab {cell_address}.")
-except Exception as e:
-    print(f"Fehler bei der Verarbeitung von Game ID {game_id}: {e}")
+        start_row = get_next_free_row()
+        cell_address = f"B{start_row}"
+        worksheet.update(range_name=cell_address, values=data_table)
+        print(f"Tabelle für Game ID {game_id} erfolgreich eingefügt ab {cell_address}.")
+    except Exception as e:
+        print(f"Fehler bei der Verarbeitung von Game ID {game_id}: {e}")
