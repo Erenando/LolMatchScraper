@@ -1,9 +1,8 @@
-import asyncio
 from lcu_driver import Connector
 
 connector = Connector()
 game_content = None
-game_id_to_fetch = None  # wird extern gesetzt
+game_id_to_fetch = None
 
 async def get_data(connection, game_id):
     global game_content
@@ -39,4 +38,4 @@ def get_content():
 def fetch_game_data(game_id):
     global game_id_to_fetch
     game_id_to_fetch = game_id
-    connector.start()  # startet asynchron den ganzen Ablauf
+    connector.start()

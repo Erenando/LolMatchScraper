@@ -1,9 +1,14 @@
 import requests
+import json
 from LCUDriver import fetch_game_data, get_content
 
 csv_delimiter = ';'
 
-url = "https://ddragon.leagueoflegends.com/cdn/15.7.1/data/en_US/champion.json"
+with open("config.json") as json_data:
+    json_result = json.load(json_data)
+    patch_id = json_result["riot_patch_id"]
+
+url = f"https://ddragon.leagueoflegends.com/cdn/{patch_id}/data/en_US/champion.json"
 response = requests.get(url)
 data = response.json()
 champions = data['data']
