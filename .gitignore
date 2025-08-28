@@ -4,3 +4,7 @@
 *.json
 *.csv
 __pycache__/
+.venv/
+build/
+dist/
+ScrimStatsCLI.spec
