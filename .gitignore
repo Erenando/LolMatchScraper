@@ -3,3 +3,4 @@
 # $ git config --global mergetool.keepBackup false
 *.json
 *.csv
+__pycache__/
