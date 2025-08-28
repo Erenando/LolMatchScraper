@@ -1,4 +1,6 @@
 import gspread
+import os
+import json
 from google.oauth2.service_account import Credentials
 from CustomGameJSONParser import process_game
 
@@ -15,22 +17,35 @@ def get_next_free_row(worksheet, start_row=5, col_index=2):
             return i
     return len(col_values) + 2
 
-def parse_game(game_id, sheet_id, worksheet_name):
-    """
-    Parst ein Game und schreibt die Daten in das Google Sheet.
-    - sheet_id: die Google Sheet ID (oder vollständiger Link; ID wird automatisch extrahiert)
-    - worksheet_name (optional): Name des Tabellenblatts; wenn None => 1. Blatt
-    """
+def _extract_sheet_id(link: str) -> str:
+    if not link:
+        raise ValueError("Leerer Link übergeben.")
+    if "docs.google.com/spreadsheets/d/" in link:
+        return link.split("/d/")[1].split("/")[0]
+    raise ValueError("Ungültiger Link übergeben.")
+
+def get_sheet_id_for_group(group_name: str) -> str:
+    with open("config.json") as json_data:
+        json_result = json.load(json_data)
+        sheet_id = json_result.get(group_name)
+        if not sheet_id:
+            raise ValueError(f"Keine Sheet ID für Gruppe '{group_name}' in config.json gefunden.")
+        return _extract_sheet_id(sheet_id)
+
+
+
+def parse_game(game_id, group_name, worksheet_name):
     try:
+
+        # Worksheet-Default Name ist "ScrimStats"
+        worksheet_name = worksheet_name or "ScrimStats"
+
         # Falls versehentlich ein kompletter Link übergeben wurde, ID extrahieren
-        if "docs.google.com/spreadsheets/d/" in sheet_id:
-            # Robust ohne re: splitten und den Teil nach /d/ nehmen
-            sheet_id = sheet_id.split("/d/")[1].split("/")[0]
-        if not worksheet_name:
-            worksheet_name = "ScrimStats"
+        group_name = get_sheet_id_for_group(group_name)
+        
                 
         # Sheet & Worksheet öffnen
-        sheet = client.open_by_key(sheet_id)
+        sheet = client.open_by_key(group_name)
         worksheet = sheet.worksheet(worksheet_name) if worksheet_name else sheet.get_worksheet(0)
 
         # Daten aus deinem Parser holen (muss 2D-Liste sein)
