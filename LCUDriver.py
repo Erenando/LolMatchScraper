@@ -1,6 +1,8 @@
 from lcu_driver import Connector
 import threading
 import time
+import requests
+import json
 
 connector = Connector()
 
@@ -48,7 +50,7 @@ async def disconnect(_):
 def get_content():
     return game_content
 
-def try_fetch_lcu(game_id: str, timeout_seconds: float = 10.0):
+def try_fetch_lcu(game_id: str, timeout_seconds: float = 5.0):
     global game_content, game_id_to_fetch
 
     game_content = None
@@ -74,11 +76,29 @@ def try_fetch_lcu(game_id: str, timeout_seconds: float = 10.0):
 
     if not _done_event.is_set():
         print("LCU Timeout - Fallback mit Riot API")
-        try:
-            pass ## TODO fetch data from RIOT API directly without Riot Client
-        except Exception:
-            pass
-        return None
+        game_content = fetch_from_riot_api(game_id)
+        return game_content
 
     return game_content
+
+
+def fetch_from_riot_api(game_id: str):
+    with open("config.json") as f:
+        config = json.load(f)
+        api_key = config.get("riot_api_key")
+        routing_region = config.get("riot_routing_region", "europe")
+
+    full_game_id = f"EUW1_{game_id}" if "_" not in str(game_id) else game_id
+
+    url = f"https://{routing_region}.api.riotgames.com/lol/match/v5/matches/{full_game_id}"
+    headers = {"X-Riot-Token": api_key}
+
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        print("Daten erfolgreich über Riot API abgerufen.")
+        return response.json()
+    else:
+        print(f"Riot API Fehler: {response.status_code} - {response.text}")
+        return None
+
 

@@ -21,32 +21,54 @@ header = [
 ]
 
 def process_game(game_id):
-    try_fetch_lcu(game_id)
-    content_data = get_content()
+    raw_data = try_fetch_lcu(game_id)
 
-    if not content_data:
-        raise Exception("Keine Spieldaten gefunden")
+    if not raw_data:
+        raise Exception("Keine Spieldaten gefunden (weder LCU noch Riot API)")
 
-    player_names = {
-        identity.get('participantId'): identity.get('player', {}).get('gameName', 'UnknownPlayer')
-        for identity in content_data.get('participantIdentities', [])
-    }
+    # Prüfen, ob es Riot API Format (Match-V5) oder LCU Format ist
+    is_riot_api = "info" in raw_data
 
-    game_duration_minutes = content_data.get('gameDuration', 0) / 60.0
+    if is_riot_api:
+        info = raw_data["info"]
+        participants = info.get("participants", [])
+        game_duration_minutes = info.get("gameDuration", 0) / 60.0
+    else:
+        # LCU Format
+        info = raw_data
+        participants = raw_data.get("participants", [])
+        game_duration_minutes = raw_data.get("gameDuration", 0) / 60.0
+        # Player Names Mapping (nur bei LCU nötig)
+        player_names_lcu = {
+            identity.get('participantId'): identity.get('player', {}).get('gameName', 'Unknown')
+            for identity in raw_data.get('participantIdentities', [])
+        }
+
     data_table = []
 
-    for participant in content_data.get('participants', []):
-        participant_id = participant.get('participantId')
-        stats = participant.get('stats', {})
-        champion_id = participant.get('championId')
-        game_name = player_names.get(participant_id, f'UnknownPlayerID_{participant_id}')
-        champion = champion_map.get(str(champion_id), str(champion_id))
+    for p in participants:
+        # Mapping der Felder, da Riot API und LCU teils unterschiedliche Keys nutzen
+        if is_riot_api:
+            name = p.get('riotIdGameName') or p.get('summonerName')
+            win = p.get('win')
+            team_id = p.get('teamId')
+            # In V5 sind die Stats direkt im Participant Objekt
+            stats = p
+        else:
+            p_id = p.get('participantId')
+            name = player_names_lcu.get(p_id, 'Unknown')
+            stats = p.get('stats', {})
+            win = stats.get('win')
+            team_id = p.get('teamId')
+
+        champion_id = p.get('championId')
+        champion_name = champion_map.get(str(champion_id), str(champion_id))
 
         data_row = [
-            game_name,
-            'W' if stats.get('win') else 'L',
-            'Blue' if participant.get('teamId') == 100 else 'Red',
-            champion,
+            name,
+            'W' if win else 'L',
+            'Blue' if team_id == 100 else 'Red',
+            champion_name,
             stats.get('kills', 0),
             stats.get('deaths', 0),
             stats.get('assists', 0),
