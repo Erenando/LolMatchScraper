@@ -1,6 +1,6 @@
 import requests
 import json
-from LCUDriver import fetch_game_data, get_content
+from LCUDriver import try_fetch_lcu, get_content
 
 csv_delimiter = ';'
 
@@ -21,7 +21,7 @@ header = [
 ]
 
 def process_game(game_id):
-    fetch_game_data(game_id)
+    try_fetch_lcu(game_id)
     content_data = get_content()
 
     if not content_data:

@@ -1,7 +1,19 @@
 from GoogleAPIConnector import parse_game
 
 if __name__ == "__main__":
-    sheet_id = input("Geben Sie Ihre Google Sheet Link oder ID ein: ")
+    teams = {}
+    with open("teams.txt", encoding="utf-8") as file:
+        i = 1
+        for line in file:
+            name = line.strip().upper()
+            if name:
+                teams.update({i: name})
+                i += 1
+
+    for key, team in teams.items():
+        print(f"{key} - {team}")
+
+    team_id = input("Geben Sie die Team ID ein: ")
     game_id = input("Geben Sie Ihre Spiel ID ein: ")
-    worksheet_name = input("Geben Sie den Namen des Arbeitsblatts ein oder drücken Sie Enter für den default value (ScrimStats): ")
-    parse_game(game_id, sheet_id, worksheet_name)
+
+    parse_game(teams[int(team_id)], game_id)
