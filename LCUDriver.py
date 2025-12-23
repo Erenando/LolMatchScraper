@@ -44,7 +44,11 @@ def try_fetch_lcu(game_id: str, timeout_seconds: float = 8.0):
         return game_content
     else:
         print("LCU nicht verfügbar oder keine Daten. Versuche Riot API Fallback...")
-        return fetch_from_riot_api(game_id)
+        riot_data = fetch_from_riot_api(game_id)
+        if riot_data is None:
+            raise ValueError(f"Keine Spieldaten für ID {game_id} gefunden (404).")
+
+        return riot_data
 
 
 def fetch_from_riot_api(game_id: str):
@@ -59,12 +63,18 @@ def fetch_from_riot_api(game_id: str):
         headers = {"X-Riot-Token": api_key}
 
         response = requests.get(url, headers=headers)
+
         if response.status_code == 200:
             print("Daten erfolgreich über Riot API abgerufen.")
             return response.json()
+        elif response.status_code == 404:
+            # Dieser Text wird direkt in der UI angezeigt
+            raise ValueError(f"Game ID {game_id} wurde nicht gefunden (404).")
         else:
-            print(f"Riot API Fehler: {response.status_code}")
-            return None
+            raise Exception(f"Riot API Fehler: {response.status_code}")
+
+    except FileNotFoundError:
+        raise Exception("config.json wurde nicht gefunden.")
     except Exception as e:
-        print(f"Fehler bei Riot API: {e}")
-        return None
+        # Reiche den Fehler weiter, anstatt ihn nur zu printen
+        raise e

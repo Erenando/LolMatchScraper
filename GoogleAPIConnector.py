@@ -29,22 +29,21 @@ def _extract_sheet_id(sheets_link: str) -> str:
 
 
 def parse_game(team_name: str, game_id: str) -> None:
-    try:
-        with open("config.json", encoding="utf-8") as json_data:
-            data = json.load(json_data)
-            sheets_link = data["google_sheets_link"]
-            worksheet_name = data["google_sheets_name"] + str(team_name)
+    # Kein try-except hier! Lass den Fehler zur UI "hochfliegen"
+    with open("config.json", encoding="utf-8") as json_data:
+        data = json.load(json_data)
+        sheets_link = data["google_sheets_link"]
+        worksheet_name = data["google_sheets_name"] + str(team_name)
 
-        sheets_id = _extract_sheet_id(sheets_link)
-        sheet = CLIENT.open_by_key(sheets_id)
-        ws = sheet.worksheet(worksheet_name)
-        data_table = process_game(game_id)
+    sheets_id = _extract_sheet_id(sheets_link)
+    sheet = CLIENT.open_by_key(sheets_id)
+    ws = sheet.worksheet(worksheet_name)
 
-        start_row = get_next_free_row(ws, start_row=5, col_index=2)
-        cell_address = f"B{start_row}"
+    # process_game ruft try_fetch_lcu auf
+    data_table = process_game(game_id)
 
-        ws.update(range_name=cell_address, values=data_table)
+    start_row = get_next_free_row(ws, start_row=5, col_index=2)
+    cell_address = f"B{start_row}"
 
-        print(f"Tabelle für Game ID {game_id} erfolgreich eingefügt ab {cell_address}.")
-    except Exception as e:
-        print(f"Fehler bei der Verarbeitung von Game ID {game_id}: {e}")
+    ws.update(range_name=cell_address, values=data_table)
+    print(f"Erfolgreich eingefügt in {cell_address}")
