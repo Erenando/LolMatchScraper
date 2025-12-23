@@ -1,6 +1,6 @@
 import requests
 import json
-from LCUDriver import try_fetch_lcu, get_content
+from LCUDriver import try_fetch_lcu
 
 csv_delimiter = ';'
 
