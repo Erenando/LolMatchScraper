@@ -36,7 +36,7 @@ def try_fetch_lcu(game_id: str, timeout_seconds: float = 8.0):
 
     if game_content:
         print("Data successfully fetched via LCU.")
-        create_json(game_content, "LCU")
+        # create_json(game_content, "LCU")
         return game_content
     else:
         print("LCU not available or no data. Trying Riot API Fallback...")
@@ -44,7 +44,7 @@ def try_fetch_lcu(game_id: str, timeout_seconds: float = 8.0):
         if riot_data is None:
             raise ValueError(f"No Match Data for ID {game_id} found (404).")
 
-        create_json(riot_data, "RIOT")
+        # create_json(riot_data, "RIOT")
         return riot_data
 
 

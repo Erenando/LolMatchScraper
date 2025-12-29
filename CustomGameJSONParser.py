@@ -73,7 +73,7 @@ def process_game(game_id, blue_team_name, red_team_name):
         ]
         data_table.append(data_row)
 
-    create_json(data_table)
+    # create_json(data_table)
     return data_table
 
 
