@@ -59,7 +59,7 @@ Passe die Datei wie folgt an:
 ### Erstellung der Executable (EXE)
 Falls du das Projekt selbst als EXE bauen möchtest, verwende diesen Befehl im Terminal:
 ```bash
-pyinstaller --noconfirm --onefile --windowed --name "LoLMatchScraper" --collect-all customtkinter main.py
+pyinstaller --noconsole --name "LolMatchScraper" --hidden-import=customtkinter UI.py
 ```
 
 ### Autor
