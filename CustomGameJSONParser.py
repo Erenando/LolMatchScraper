@@ -2,8 +2,6 @@ import requests
 import json
 from LCUDriver import try_fetch_lcu
 
-csv_delimiter = ';'
-
 with open("config.json") as json_data:
     json_result = json.load(json_data)
     patch_id = json_result["riot_patch_id"]
@@ -14,19 +12,13 @@ data = response.json()
 champions = data['data']
 champion_map = {champ['key']: champ['id'] for champ in champions.values()}
 
-header = [
-    "GameName", "Win/loss", "Side", "Champion", "Kills", "Deaths", "Assists", "DMG Dealt", "DMG Taken",
-    "Wards Placed", "Wards Destroyed", "Control Wards", "Gold Earned",
-    "CS", "Game Duration"
-]
-
-def process_game(game_id):
+def process_game(game_id, blue_team_name, red_team_name):
+    global player_names_lcu
     raw_data = try_fetch_lcu(game_id)
 
     if not raw_data:
-        raise Exception("Keine Spieldaten gefunden (weder LCU noch Riot API)")
+        raise Exception("No match data found (neither LCU nor Riot API)")
 
-    # Prüfen, ob es Riot API Format (Match-V5) oder LCU Format ist
     is_riot_api = "info" in raw_data
 
     if is_riot_api:
@@ -34,11 +26,8 @@ def process_game(game_id):
         participants = info.get("participants", [])
         game_duration_minutes = info.get("gameDuration", 0) / 60.0
     else:
-        # LCU Format
-        info = raw_data
         participants = raw_data.get("participants", [])
         game_duration_minutes = raw_data.get("gameDuration", 0) / 60.0
-        # Player Names Mapping (nur bei LCU nötig)
         player_names_lcu = {
             identity.get('participantId'): identity.get('player', {}).get('gameName', 'Unknown')
             for identity in raw_data.get('participantIdentities', [])
@@ -47,27 +36,28 @@ def process_game(game_id):
     data_table = []
 
     for p in participants:
-        # Mapping der Felder, da Riot API und LCU teils unterschiedliche Keys nutzen
         if is_riot_api:
             name = p.get('riotIdGameName') or p.get('summonerName')
             win = p.get('win')
-            team_id = p.get('teamId')
-            # In V5 sind die Stats direkt im Participant Objekt
             stats = p
         else:
             p_id = p.get('participantId')
             name = player_names_lcu.get(p_id, 'Unknown')
             stats = p.get('stats', {})
             win = stats.get('win')
-            team_id = p.get('teamId')
+
 
         champion_id = p.get('championId')
         champion_name = champion_map.get(str(champion_id), str(champion_id))
+        team_id = p.get('teamId')
+        side = 'Blue' if team_id == 100 else 'Red'
+        current_team_name = blue_team_name if side == 'Blue' else red_team_name
 
         data_row = [
+            current_team_name,
             name,
             'W' if win else 'L',
-            'Blue' if team_id == 100 else 'Red',
+            side,
             champion_name,
             stats.get('kills', 0),
             stats.get('deaths', 0),
@@ -83,4 +73,10 @@ def process_game(game_id):
         ]
         data_table.append(data_row)
 
+    create_json(data_table)
     return data_table
+
+
+def create_json(google_sheets_data):
+    with open("google_sheets_data.json", "w", encoding="utf-8") as json_file:
+        json.dump(google_sheets_data, json_file, indent=4)

@@ -10,10 +10,7 @@ CREDS = Credentials.from_service_account_file("CGAPIkeys.json", scopes=SCOPES)
 CLIENT = gspread.authorize(CREDS)
 
 
-def get_next_free_row(ws, start_row=5, col_index=2) -> int:
-    """
-    Sucht die nächste freie Zeile in einer Spalte (Standard: Spalte B).
-    """
+def get_next_free_row(ws, start_row=5, col_index=1) -> int:
     col_values = ws.col_values(col_index)
     for i in range(start_row, len(col_values) + 2):
         if i > len(col_values) or not col_values[i - 1].strip():
@@ -24,26 +21,22 @@ def get_next_free_row(ws, start_row=5, col_index=2) -> int:
 def _extract_sheet_id(sheets_link: str) -> str:
     m = re.search(r"(?<=docs\.google\.com/spreadsheets/d/)[^/]+", sheets_link)
     if not m:
-        raise ValueError("Konnte Spreadsheet-ID nicht aus google_sheets_link extrahieren.")
+        raise ValueError("Could not extract Spreadsheet-ID from google_sheets_link.")
     return m.group()
 
-
-def parse_game(team_name: str, game_id: str) -> None:
-    # Kein try-except hier! Lass den Fehler zur UI "hochfliegen"
+def parse_game(worksheet_team_name: str, blue_team: str, red_team: str, game_id: str) -> None:
     with open("config.json", encoding="utf-8") as json_data:
         data = json.load(json_data)
         sheets_link = data["google_sheets_link"]
-        worksheet_name = data["google_sheets_name"] + str(team_name)
+        worksheet_name = data["google_sheets_name"] + str(worksheet_team_name)
 
     sheets_id = _extract_sheet_id(sheets_link)
     sheet = CLIENT.open_by_key(sheets_id)
     ws = sheet.worksheet(worksheet_name)
 
-    # process_game ruft try_fetch_lcu auf
-    data_table = process_game(game_id)
+    data_table = process_game(game_id, blue_team, red_team)
 
-    start_row = get_next_free_row(ws, start_row=5, col_index=2)
-    cell_address = f"B{start_row}"
+    start_row = get_next_free_row(ws, start_row=5, col_index=1)
+    cell_address = f"A{start_row}"
 
     ws.update(range_name=cell_address, values=data_table)
-    print(f"Erfolgreich eingefügt in {cell_address}")

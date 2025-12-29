@@ -1,45 +1,66 @@
-## Project: CG2Sheets
-### Import Matches to Google Sheets
-A program that automatically imports your League of Legends match data into Google Sheets.
+# LoL Match Scraper
 
-### Description
-This program connects to the League of Legends client and retrieves match data from matches including official PrimeLeague games and custom games. 
-It then formats this data into a readable table and uploads it to your selected Google Sheet. 
-The program is designed to be user-friendly and requires minimal setup.
+## Projekt-Übersicht
+Ein Tool zum automatischen Importieren von League of Legends Match-Daten in Google Sheets. Ideal für PrimeLeague-Teams, Scrims und Custom Games.
 
-You can find following scripts in ./sheets/Scripts:
+## Beschreibung
+Dieses Programm ruft Match-Daten entweder direkt über den League Client (LCU) oder via Riot API (Fallback) ab. Die Daten werden formatiert und automatisch in ein Google Spreadsheet hochgeladen, ohne bestehende Daten zu überschreiben.
 
-| file                    | what it does                                                                              |
-|-------------------------|-------------------------------------------------------------------------------------------|
-| LCUDriver.py            | Connects to your League of Legends Client in order to fetch the match data                |
-| CustomGameJSONParser.py | Parses the data.json in a readable table and _also creates a csv to copy the data manually_ |
-| GoogleAPIConnector.py   | Connects to your Google Sheet and pastes the data without overwriting existing data       |
-| main.py                 | The program that has to be executed to start the app.                                     |
-### How to run the program
+### System-Komponenten
 
-1. Install Python if you haven't installed python yet.
-   - Download the latest version of Python from the official website: [python.org](https://www.python.org/downloads/)
-   - Follow the installation instructions for your operating system.
-   - Make sure to check the box that says "Add Python to PATH" during installation.
+| Datei | Funktion |
+|:--- |:--- |
+| `main.py` | Der Haupteinstiegspunkt, der die grafische Benutzeroberfläche (UI) startet. |
+| `UI.py` | Die Benutzeroberfläche (CustomTkinter) für Team-Auswahl und Match-ID Eingabe. |
+| `LCUDriver.py` | Verbindet sich mit dem LCU (Local Client) oder nutzt die Riot API als Fallback. |
+| `CustomGameJSONParser.py` | Verarbeitet die Rohdaten in ein tabellarisches Format für Google Sheets. |
+| `GoogleAPIConnector.py` | Verwaltet die Authentifizierung und das Schreiben der Daten in das Sheet. |
 
-2. Start the League of Legends client and log in to your account.
+---
 
-3. Download the newest [release](https://github.com/NamoPhoenix/LolMatchScraper/releases/tag/LolMatchScraper-1.0.0) and extract the folder onto your computer
+## Einrichtung
 
-4. For the script to automatically upload the match-table onto your personal Google Sheets follow this [tutorial](https://youtu.be/zCEJurLGFRk?si=d3y0o-ChmPQCt0Vu&t=115) until min 6:45
-   - Insert the contents of the downloaded json from the tutorial at minute 5:11 into the file called `CGAPIkeys.json`.
+### 1. Google API Vorbereitung
+* Folge diesem [Tutorial](https://youtu.be/zCEJurLGFRk?si=d3y0o-ChmPQCt0Vu&t=115) bis Minute 6:45, um ein Service-Konto zu erstellen.
+* Benenne die heruntergeladene JSON-Datei in `CGAPIkeys.json` um und lege sie in den Projektordner.
 
-5. Open the extracted folder and edit the file called `config.py`. Change the value for the key 'google_sheets_link' with your Google Sheets link. 
-   - Make sure to keep the quotation marks around the link. 
-   - The link should look something like this: `https://docs.google.com/spreadsheets/d/your_sheet_id/edit#gid=0`
-   - Change the value for the key 'google_sheets_name' to the name of your page/sheet within your Document (not  the name of the whole spreadsheet at the top left but the name at the lower index tab)
-   - you can also update the league of legends patch by changing the key 'patch_id' 
+### 2. Konfiguration (`config.json`)
+Passe die Datei wie folgt an:
+```json
+{
+  "google_sheets_link": "DEIN_GOOGLE_SHEET_LINK",
+  "google_sheets_name": "Stats_",
+  "riot_patch_id": "14.24.1",
+  "riot_api_key": "DEIN_RIOT_API_KEY",
+  "riot_routing_region": "europe"
+}
+```
+* **google_sheets_name**: Der Prefix deiner Tabellenblätter (das Programm hängt den Namen aus der `teams.txt` an).
+* **riot_api_key**: Erstelle einen Key auf [developer.riotgames.com](https://developer.riotgames.com/). 
+    * **Hinweis:** Um einen permanenten Key zu erhalten, musst du unter "My Software" ein neues **Produkt registrieren** (Personal Project), da der Standard-Key alle 24 Stunden abläuft.
 
+### 3. Teams verwalten (`teams.txt`)
+* Schreibe pro Zeile einen Teamnamen in die Datei. Diese erscheinen im Dropdown-Menü der UI, um das Ziel-Tabellenblatt im Google Sheet zu bestimmen.
 
-6. Run the `main.exe` file.
-   
-7. Copy the game ID from the League of Legends client and paste it into the terminal when prompted. 
-   - The script will then fetch the match data and upload it to your Google Sheet.
+---
 
-   
-### Author: NamoPhoenix and Sepia2023
+## Nutzung des Programms
+
+1. **Voraussetzung:** Falls du den LCU-Modus nutzt, starte den League of Legends Client und logge dich ein.
+2. **Start:** Führe die `LoLMatchScraper.exe` aus.
+3. **Eingabe in der UI:**
+    * **Team auswählen:** Bestimmt das Ziel-Tabellenblatt im Google Sheet.
+    * **Team Blau / Team Rot:** Gib die Namen der beiden Teams ein.
+    * **Game ID:** Kopiere die Match-ID aus deinem LoL-Client (Match-Historie) und füge sie ein.
+4. **Abschluss:** Klicke auf **"Daten abrufen"**. Das Programm gibt Feedback im Status-Label, sobald der Upload abgeschlossen ist.
+
+---
+
+### Erstellung der Executable (EXE)
+Falls du das Projekt selbst als EXE bauen möchtest, verwende diesen Befehl im Terminal:
+```bash
+pyinstaller --noconfirm --onefile --windowed --name "LoLMatchScraper" --collect-all customtkinter main.py
+```
+
+### Autor
+**Eren** | Discord: **Erenando**
