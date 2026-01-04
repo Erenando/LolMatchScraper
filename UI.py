@@ -1,11 +1,30 @@
 import customtkinter as ctk
 from tkinter import messagebox
-from GoogleAPIConnector import parse_game
+from HTTPClient import parse_game
 import threading
-import multiprocessing  # Notwendig für den .exe Export
+import multiprocessing
+import os
+import sys
+import ctypes
+from PIL import Image, ImageTk
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+
+try:
+    my_app_id = 'lol_match_scraper'  # Beliebige ID
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(my_app_id)
+except Exception:
+    pass
+
 
 class App(ctk.CTk):
     def __init__(self):
@@ -13,6 +32,28 @@ class App(ctk.CTk):
 
         self.title("LoL Match Scraper")
         self.geometry("500x550")
+
+        image_path = resource_path("img/ACE_Logo.iso")
+
+        try:
+            img_open = Image.open(image_path)
+
+            icon_photo = ImageTk.PhotoImage(img_open)
+            self.wm_iconphoto(True, icon_photo)
+
+            my_logo = ctk.CTkImage(
+                light_image=img_open,
+                dark_image=img_open,
+                size=(60, 60)
+            )
+
+            self.logo_label_corner = ctk.CTkLabel(self, image=my_logo, text="")
+            self.logo_label_corner.place(x=15, y=15)
+
+        except Exception as e:
+            print(f"Warnung: Bild konnte nicht geladen werden. Fehler: {e}")
+            self.logo_label_corner = ctk.CTkLabel(self, text="ACE", font=("Arial", 20, "bold"))
+            self.logo_label_corner.place(x=15, y=15)
 
         self.teams = self.load_teams()
 
@@ -97,13 +138,13 @@ class App(ctk.CTk):
             return
 
         self.start_button.configure(state="disabled", text="Processing...")
-        # Wir übergeben nun alle 4 Parameter an den Worker
         thread = threading.Thread(target=self.worker, args=(worksheet_team, blue_name, red_name, game_id), daemon=True)
         thread.start()
 
     def worker(self, worksheet_team, blue_name, red_name, game_id):
         try:
-            parse_game(worksheet_team, blue_name, red_name, game_id)
+            # TODO: Decide if worksheet_team is also given in payload
+            parse_game(blue_name, red_name, game_id)
             self.after(0, lambda: self.show_success(game_id))
         except Exception as e:
             error_text = str(e) if str(e) else f"Error ({type(e).__name__})"
