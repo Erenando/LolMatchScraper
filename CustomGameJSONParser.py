@@ -13,7 +13,7 @@ champions = data['data']
 champion_map = {champ['key']: champ['id'] for champ in champions.values()}
 
 
-def process_game(game_id, blue_team_name, red_team_name):
+def process_game(game_id, blue_team_name, red_team_name, game_type, match_number):
     global player_names_lcu
 
     raw_data, source_api = try_fetch_lcu(game_id)
@@ -70,7 +70,10 @@ def process_game(game_id, blue_team_name, red_team_name):
             "control_wards": stats.get('visionWardsBoughtInGame', 0),
             "gold": stats.get('goldEarned', 0),
             "cs": stats.get('totalMinionsKilled', 0) + stats.get('neutralMinionsKilled', 0),
-            "duration": round(game_duration_minutes, 2)
+            "duration": round(game_duration_minutes, 2),
+            "game_type": game_type,
+            "match_id": game_id,
+            "match_number": str(match_number),
         }
         data_table.append(data_row)
 

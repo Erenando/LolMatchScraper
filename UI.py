@@ -4,18 +4,18 @@ import threading
 import multiprocessing
 from PIL import Image, ImageTk
 from CustomGameJSONParser import process_game
-from HTTPClient import send_to_api
 from GoogleAPIConnector import upload_to_sheets
 
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("dark-blue")  # Etwas moderneres Theme
+ctk.set_default_color_theme("dark-blue")
+
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title("LoL Match Scraper")
-        self.geometry("600x680")
+        self.geometry("600x700")
 
         self.teams = self.load_teams()
 
@@ -45,15 +45,33 @@ class App(ctk.CTk):
         self.meta_grid = ctk.CTkFrame(self.settings_frame, fg_color="transparent")
         self.meta_grid.pack(pady=(0, 15), padx=20, fill="x")
 
-        self.gametype_vars = ["Official", "Scrim", "Tournament"]
-        self.gametype_dropdown = ctk.CTkComboBox(self.meta_grid, values=self.gametype_vars, height=35, state="readonly")
-        self.gametype_dropdown.set("Select Type")
-        self.gametype_dropdown.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        # --- Left Column (Game Type) ---
+        self.meta_left = ctk.CTkFrame(self.meta_grid, fg_color="transparent")
+        self.meta_left.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
+        # Label Game Type
+        ctk.CTkLabel(self.meta_left, text="Game Type", font=("Arial", 11, "bold"), text_color="gray", anchor="w").pack(
+            fill="x", pady=(0, 2))
+
+        # Dropdown Game Type
+        self.gametype_vars = ["Official", "Scrim", "Tournament"]
+        self.gametype_dropdown = ctk.CTkComboBox(self.meta_left, values=self.gametype_vars, height=35, state="readonly")
+        self.gametype_dropdown.set("Select Type")
+        self.gametype_dropdown.pack(fill="x")
+
+        # --- Right Column (Match Number) ---
+        self.meta_right = ctk.CTkFrame(self.meta_grid, fg_color="transparent")
+        self.meta_right.pack(side="left", fill="x", expand=True, padx=(10, 0))
+
+        # Label Match Number
+        ctk.CTkLabel(self.meta_right, text="Match Number", font=("Arial", 11, "bold"), text_color="gray",
+                     anchor="w").pack(fill="x", pady=(0, 2))
+
+        # Dropdown Match Number
         self.game_nr_vars = ["1", "2", "3", "4", "5"]
-        self.game_nr_dropdown = ctk.CTkComboBox(self.meta_grid, values=self.game_nr_vars, height=35, state="readonly")
-        self.game_nr_dropdown.set("Game #")
-        self.game_nr_dropdown.pack(side="left", fill="x", expand=True, padx=(10, 0))
+        self.game_nr_dropdown = ctk.CTkComboBox(self.meta_right, values=self.game_nr_vars, height=35, state="readonly")
+        self.game_nr_dropdown.set("1")
+        self.game_nr_dropdown.pack(fill="x")
 
         # --- SECTION 2: MATCHUP ---
         self.matchup_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -66,11 +84,26 @@ class App(ctk.CTk):
             anchor="w")
 
         self.blue_entry = ctk.CTkEntry(self.blue_container, placeholder_text="Name Blue", height=40,
-                                       border_color="#3b82f6", border_width=2)  # Blauer Rand
+                                       border_color="#3b82f6", border_width=2)
         self.blue_entry.pack(fill="x", pady=5)
 
-        # VS Label
-        ctk.CTkLabel(self.matchup_frame, text="VS", font=("Arial Black", 14), text_color="gray").pack(side="left", padx=15, pady=(25, 0))
+        # --- CENTER: VS & SWAP BUTTON ---
+        self.vs_frame = ctk.CTkFrame(self.matchup_frame, fg_color="transparent")
+        self.vs_frame.pack(side="left", padx=10)
+
+        ctk.CTkLabel(self.vs_frame, text="VS", font=("Arial Black", 10), text_color="gray").pack(pady=(0, 2))
+
+        self.swap_btn = ctk.CTkButton(
+            self.vs_frame,
+            text="↔",
+            width=40,
+            height=30,
+            font=("Arial", 18),
+            fg_color="#333333",
+            hover_color="#444444",
+            command=self.swap_teams
+        )
+        self.swap_btn.pack()
 
         # Red Side
         self.red_container = ctk.CTkFrame(self.matchup_frame, fg_color="transparent")
@@ -80,7 +113,7 @@ class App(ctk.CTk):
 
         self.red_entry = ctk.CTkEntry(self.red_container, placeholder_text="Name Red", height=40,
                                       border_color="#ef4444", border_width=2,
-                                      justify="right")  # Roter Rand + Rechtsbündig
+                                      justify="right")
         self.red_entry.pack(fill="x", pady=5)
 
         # --- SECTION 3: GAME ID & ACTION ---
@@ -99,7 +132,7 @@ class App(ctk.CTk):
             font=("Arial", 14, "bold"),
             height=50,
             corner_radius=8,
-            fg_color="#10b981",  # Grün für "Go"
+            fg_color="#10b981",
             hover_color="#059669",
             command=self.run_process,
             state="disabled"
@@ -123,7 +156,7 @@ class App(ctk.CTk):
         self.copyright_label.place(relx=1.0, rely=0.5, anchor="e")
 
         # Logo Logic
-        image_path = "img/ACE_Logo.png"
+        image_path = "img/NEKO_LOGO.png"
         try:
             img_open = Image.open(image_path)
             # Icon App
@@ -150,54 +183,58 @@ class App(ctk.CTk):
         except:
             return {"ERROR": "Teams not found"}
 
+    def swap_teams(self):
+        blue_val = self.blue_entry.get()
+        red_val = self.red_entry.get()
+
+        self.blue_entry.delete(0, "end")
+        self.red_entry.delete(0, "end")
+
+        self.blue_entry.insert(0, red_val)
+        self.red_entry.insert(0, blue_val)
+
     def check_inputs(self, event=None):
         val = self.game_id_entry.get().strip()
         if val.isdigit() and 5 <= len(val) <= 13:
-            self.start_button.configure(state="normal", fg_color="#10b981")  # Grün aktiv
+            self.start_button.configure(state="normal", fg_color="#10b981")
         else:
-            self.start_button.configure(state="disabled", fg_color="#333333")  # Grau inaktiv
+            self.start_button.configure(state="disabled", fg_color="#333333")
 
     def run_process(self):
         worksheet_team = self.team_dropdown.get()
         blue_name = self.blue_entry.get().strip()
         red_name = self.red_entry.get().strip()
         game_id = self.game_id_entry.get().strip()
+
+
         game_type = self.gametype_dropdown.get()
-        game_nr = self.game_nr_dropdown.get()
+        match_number = self.game_nr_dropdown.get().strip()
 
         if not blue_name or not red_name:
             messagebox.showwarning("Missing Input", "Please enter name for both teams!")
             return
-        if game_type not in self.gametype_vars:
-            messagebox.showwarning("Missing Input", "Select a valid Game Type!")
-            return
-        if game_nr not in self.game_nr_vars:
-            messagebox.showwarning("Missing Input", "Select a valid Game Number!")
+
+        if game_type == "Select Type":
+            messagebox.showwarning("Missing Input", "Please select a Game Type!")
             return
 
         # UI Update
-        self.start_button.configure(state="disabled", text="PROCESSING...", fg_color="#eab308")  # Gelb für Loading
+        self.start_button.configure(state="disabled", text="PROCESSING...", fg_color="#eab308")
         self.status_label.configure(text="Fetching Data...", text_color="white")
 
         thread = threading.Thread(
             target=self.worker,
-            args=(worksheet_team, blue_name, red_name, game_id, game_type, game_nr),
+            args=(worksheet_team, blue_name, red_name, game_id, game_type, match_number),
             daemon=True
         )
         thread.start()
 
-    def worker(self, worksheet_team, blue_name, red_name, game_id, game_type, game_nr):
+    def worker(self, worksheet_team, blue_name, red_name, game_id, game_type, match_number):
         try:
-            # 1. fetch data
-            parsed_data, raw_data, source = process_game(game_id, blue_name, red_name)
+            parsed_data, raw_data, source = process_game(game_id, blue_name, red_name, game_type, match_number)
 
-            # 2. Google Sheets Upload
             self.status_label.configure(text="Uploading to Google Sheets...", text_color="#60a5fa")
             upload_to_sheets(parsed_data, worksheet_team)
-
-            # 3. HTTP API Upload
-            self.status_label.configure(text="Uploading to HTTP API...", text_color="#60a5fa")
-            send_to_api(parsed_data, raw_data, source, game_id, game_type, game_nr, blue_name, red_name)
 
             self.after(0, lambda: self.show_success(game_id))
 
@@ -210,10 +247,16 @@ class App(ctk.CTk):
         self.status_label.configure(text=f"Success: Game {game_id} done!", text_color="#4ade80")
         messagebox.showinfo("Success", f"Data for Game {game_id} successfully processed!")
 
-        # Reset
         self.game_id_entry.delete(0, 'end')
-        self.gametype_dropdown.set("Select Type")
-        self.game_nr_dropdown.set("Game #")
+
+        current_nr = self.game_nr_dropdown.get()
+        if current_nr.isdigit():
+            next_nr = int(current_nr) + 1
+            if next_nr > 5:
+                next_nr = 1
+            self.game_nr_dropdown.set(str(next_nr))
+        else:
+            self.game_nr_dropdown.set("1")
 
         self.start_button.configure(text="FETCH & UPLOAD DATA")
         self.check_inputs()
