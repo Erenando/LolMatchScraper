@@ -46,37 +46,30 @@ def process_game(game_id, blue_team_name, red_team_name):
             stats = p.get('stats', {})
             win = stats.get('win')
 
-
         champion_id = p.get('championId')
         champion_name = champion_map.get(str(champion_id), str(champion_id))
         team_id = p.get('teamId')
         side = 'Blue' if team_id == 100 else 'Red'
         current_team_name = blue_team_name if side == 'Blue' else red_team_name
 
-        data_row = [
-            current_team_name,
-            name,
-            'W' if win else 'L',
-            side,
-            champion_name,
-            stats.get('kills', 0),
-            stats.get('deaths', 0),
-            stats.get('assists', 0),
-            stats.get('totalDamageDealtToChampions', 0),
-            stats.get('totalDamageTaken', 0),
-            stats.get('wardsPlaced', 0),
-            stats.get('wardsKilled', 0),
-            stats.get('visionWardsBoughtInGame', 0),
-            stats.get('goldEarned', 0),
-            stats.get('totalMinionsKilled', 0) + stats.get('neutralMinionsKilled', 0),
-            round(game_duration_minutes, 2)
-        ]
+        data_row = {
+            "team": current_team_name,
+            "player": name,
+            "win": "W" if win else "L",
+            "side": str(side),
+            "champion": champion_name,
+            "kills": stats.get('kills', 0),
+            "deaths": stats.get('deaths', 0),
+            "assists": stats.get('assists', 0),
+            "damage_dealt": stats.get('totalDamageDealtToChampions', 0),
+            "damage_taken": stats.get('totalDamageTaken', 0),
+            "wards_placed": stats.get('wardsPlaced', 0),
+            "wards_killed": stats.get('wardsKilled', 0),
+            "control_wards": stats.get('visionWardsBoughtInGame', 0),
+            "gold": stats.get('goldEarned', 0),
+            "cs": stats.get('totalMinionsKilled', 0) + stats.get('neutralMinionsKilled', 0),
+            "duration": round(game_duration_minutes, 2)
+        }
         data_table.append(data_row)
 
-    # create_json(data_table)
     return data_table
-
-
-def create_json(google_sheets_data):
-    with open("google_sheets_data.json", "w", encoding="utf-8") as json_file:
-        json.dump(google_sheets_data, json_file, indent=4)

@@ -59,7 +59,7 @@ Passe die Datei wie folgt an:
 ### Erstellung der Executable (EXE)
 Falls du das Projekt selbst als EXE bauen möchtest, verwende diesen Befehl im Terminal:
 ```bash
-pyinstaller --noconsole --name "LolMatchScraper" --hidden-import=customtkinter UI.py
+pyinstaller --noconsole --onefile --name "LolMatchScraper" --add-data "img;img" --icon "img/ACE_Logo.iso" UI.py
 ```
 
 ### Autor

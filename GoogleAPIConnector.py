@@ -2,7 +2,6 @@ import gspread
 import json
 import re
 from google.oauth2.service_account import Credentials
-from CustomGameJSONParser import process_game
 
 # Google Sheets Auth
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -24,7 +23,7 @@ def _extract_sheet_id(sheets_link: str) -> str:
         raise ValueError("Could not extract Spreadsheet-ID from google_sheets_link.")
     return m.group()
 
-def parse_game(worksheet_team_name: str, blue_team: str, red_team: str, game_id: str) -> None:
+def upload_to_sheets(game_data: list, worksheet_team_name: str) -> None:
     with open("config.json", encoding="utf-8") as json_data:
         data = json.load(json_data)
         sheets_link = data["google_sheets_link"]
@@ -34,9 +33,10 @@ def parse_game(worksheet_team_name: str, blue_team: str, red_team: str, game_id:
     sheet = CLIENT.open_by_key(sheets_id)
     ws = sheet.worksheet(worksheet_name)
 
-    data_table = process_game(game_id, blue_team, red_team)
+    values_only_table = [list(row.values()) for row in game_data]
 
     start_row = get_next_free_row(ws, start_row=5, col_index=1)
     cell_address = f"A{start_row}"
 
-    ws.update(range_name=cell_address, values=data_table)
+    ws.update(range_name=cell_address, values=values_only_table)
+    print("Google Sheets Upload Erfolg!")
