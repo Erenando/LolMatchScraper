@@ -12,9 +12,11 @@ data = response.json()
 champions = data['data']
 champion_map = {champ['key']: champ['id'] for champ in champions.values()}
 
+
 def process_game(game_id, blue_team_name, red_team_name):
     global player_names_lcu
-    raw_data = try_fetch_lcu(game_id)
+
+    raw_data, source_api = try_fetch_lcu(game_id)
 
     if not raw_data:
         raise Exception("No match data found (neither LCU nor Riot API)")
@@ -72,4 +74,4 @@ def process_game(game_id, blue_team_name, red_team_name):
         }
         data_table.append(data_row)
 
-    return data_table
+    return data_table, raw_data, source_api

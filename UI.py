@@ -188,18 +188,22 @@ class App(ctk.CTk):
 
     def worker(self, worksheet_team, blue_name, red_name, game_id, game_type, game_nr):
         try:
-            game_data = process_game(game_id, blue_name, red_name)
+            # 1. fetch data
+            parsed_data, raw_data, source = process_game(game_id, blue_name, red_name)
 
-            self.status_label.configure(text="Uploading to HTTP API...", text_color="#60a5fa")
-            send_to_api(game_data, game_id, game_type, game_nr, blue_name, red_name)
-
+            # 2. Google Sheets Upload
             self.status_label.configure(text="Uploading to Google Sheets...", text_color="#60a5fa")
-            upload_to_sheets(game_data, worksheet_team)
+            upload_to_sheets(parsed_data, worksheet_team)
+
+            # 3. HTTP API Upload
+            self.status_label.configure(text="Uploading to HTTP API...", text_color="#60a5fa")
+            send_to_api(parsed_data, raw_data, source, game_id, game_type, game_nr, blue_name, red_name)
 
             self.after(0, lambda: self.show_success(game_id))
 
         except Exception as e:
             error_text = str(e) if str(e) else f"Error ({type(e).__name__})"
+            print(f"WORKER ERROR: {error_text}")
             self.after(0, lambda: self.show_error(error_text))
 
     def show_success(self, game_id):

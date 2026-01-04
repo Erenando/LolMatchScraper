@@ -3,7 +3,6 @@ from lcu_driver import Connector
 import requests
 import json
 
-
 def _lcu_worker(game_id, return_dict):
     connector = Connector()
 
@@ -16,7 +15,6 @@ def _lcu_worker(game_id, return_dict):
 
     connector.start()
 
-
 def try_fetch_lcu(game_id: str, timeout_seconds: float = 8.0):
     manager = multiprocessing.Manager()
     return_dict = manager.dict()
@@ -28,7 +26,7 @@ def try_fetch_lcu(game_id: str, timeout_seconds: float = 8.0):
     process.join(timeout=timeout_seconds)
 
     if process.is_alive():
-        print("LCU Request to slow (Timeout).")
+        print("LCU Request too slow (Timeout).")
         process.terminate()
         process.join()
 
@@ -36,17 +34,14 @@ def try_fetch_lcu(game_id: str, timeout_seconds: float = 8.0):
 
     if game_content:
         print("Data successfully fetched via LCU.")
-        # create_json(game_content, "LCU")
-        return game_content
+        return game_content, "lcu"
     else:
         print("LCU not available or no data. Trying Riot API Fallback...")
         riot_data = fetch_from_riot_api(game_id)
         if riot_data is None:
             raise ValueError(f"No Match Data for ID {game_id} found (404).")
 
-        # create_json(riot_data, "RIOT")
-        return riot_data
-
+        return riot_data, "riot"
 
 def fetch_from_riot_api(game_id: str):
     try:
@@ -73,9 +68,3 @@ def fetch_from_riot_api(game_id: str):
         raise Exception("config.json not found.")
     except Exception as e:
         raise e
-
-
-def create_json(data, origin):
-    data_name = origin + "data.json"
-    with open(data_name, "w", encoding="utf-8") as json_file:
-        json.dump(data, json_file, indent=4)
