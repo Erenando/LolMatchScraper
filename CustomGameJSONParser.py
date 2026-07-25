@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import time
 
 import requests
 from LCUDriver import try_fetch_lcu
@@ -10,6 +11,28 @@ _champion_map_cache = {}
 _patch_cache = None
 _patch_cache_mtime = None
 _http_session = requests.Session()
+DEFAULT_PLAYER_NAME = "Unknown"
+
+
+def _fetch_json_with_retries(url: str, source_name: str, attempts: int = 3, timeout: int = 10):
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            response = _http_session.get(url, timeout=timeout)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.Timeout as exc:
+            last_error = exc
+            if attempt == attempts:
+                raise TimeoutError(f"{source_name} request timed out after {attempts} attempts.") from exc
+        except requests.exceptions.RequestException as exc:
+            last_error = exc
+            if attempt == attempts:
+                raise ConnectionError(f"{source_name} request failed after {attempts} attempts: {exc}") from exc
+
+        time.sleep(0.8 * attempt)
+
+    raise ConnectionError(f"{source_name} request failed: {last_error}")
 
 
 def _load_patch_id() -> str:
@@ -44,9 +67,7 @@ def _get_champion_map(patch_id: str) -> dict:
             return _champion_map_cache[patch_id]
 
     url = f"https://ddragon.leagueoflegends.com/cdn/{patch_id}/data/en_US/champion.json"
-    response = _http_session.get(url, timeout=10)
-    response.raise_for_status()
-    data = response.json()
+    data = _fetch_json_with_retries(url, "Data Dragon champion data")
     champions = data.get("data", {})
     champion_map = {champ["key"]: champ["id"] for champ in champions.values()}
     if not champion_map:
@@ -65,6 +86,47 @@ def _format_player_with_hashtag(name: str, hashtag: str) -> str:
     return clean_name
 
 
+def _extract_lcu_player_identity_maps(raw_data: dict):
+    player_names = {}
+    player_hashtags = {}
+    for identity in raw_data.get("participantIdentities", []):
+        participant_id = identity.get("participantId")
+        player_data = identity.get("player", {})
+        player_names[participant_id] = (
+            player_data.get("gameName")
+            or player_data.get("summonerName")
+            or DEFAULT_PLAYER_NAME
+        )
+        player_hashtags[participant_id] = (
+            player_data.get("tagLine")
+            or player_data.get("riotIdTagline")
+            or ""
+        )
+    return player_names, player_hashtags
+
+
+def _resolve_participant_data(participant: dict, is_riot_api: bool, player_names: dict, player_hashtags: dict):
+    if is_riot_api:
+        name = (
+            participant.get("riotIdGameName")
+            or participant.get("summonerName")
+            or DEFAULT_PLAYER_NAME
+        )
+        hashtag = participant.get("riotIdTagline") or ""
+        stats = participant
+        win = participant.get("win")
+        return name, hashtag, stats, win
+
+    participant_id = participant.get("participantId")
+    stats = participant.get("stats", {})
+    return (
+        player_names.get(participant_id, DEFAULT_PLAYER_NAME),
+        player_hashtags.get(participant_id, ""),
+        stats,
+        stats.get("win"),
+    )
+
+
 def process_game(game_id, blue_team_name, red_team_name, game_type, match_number):
     patch_id = _load_patch_id()
     champion_map = _get_champion_map(patch_id)
@@ -75,37 +137,27 @@ def process_game(game_id, blue_team_name, red_team_name, game_type, match_number
 
     is_riot_api = "info" in raw_data
 
+    player_names_lcu = {}
+    player_hashtags_lcu = {}
+
     if is_riot_api:
         info = raw_data["info"]
         participants = info.get("participants", [])
         game_duration_minutes = info.get("gameDuration", 0) / 60.0
-        player_names_lcu = {}
-        player_hashtags_lcu = {}
     else:
         participants = raw_data.get("participants", [])
         game_duration_minutes = raw_data.get("gameDuration", 0) / 60.0
-        player_names_lcu = {}
-        player_hashtags_lcu = {}
-        for identity in raw_data.get('participantIdentities', []):
-            participant_id = identity.get('participantId')
-            player_data = identity.get('player', {})
-            player_names_lcu[participant_id] = player_data.get('gameName') or player_data.get('summonerName') or 'Unknown'
-            player_hashtags_lcu[participant_id] = player_data.get('tagLine') or player_data.get('riotIdTagline') or ''
+        player_names_lcu, player_hashtags_lcu = _extract_lcu_player_identity_maps(raw_data)
 
     data_table = []
 
     for p in participants:
-        if is_riot_api:
-            name = p.get('riotIdGameName') or p.get('summonerName') or 'Unknown'
-            hashtag = p.get('riotIdTagline') or ''
-            win = p.get('win')
-            stats = p
-        else:
-            p_id = p.get('participantId')
-            name = player_names_lcu.get(p_id, 'Unknown')
-            hashtag = player_hashtags_lcu.get(p_id, '')
-            stats = p.get('stats', {})
-            win = stats.get('win')
+        name, hashtag, stats, win = _resolve_participant_data(
+            p,
+            is_riot_api,
+            player_names_lcu,
+            player_hashtags_lcu,
+        )
 
         champion_id = p.get('championId')
         champion_name = champion_map.get(str(champion_id), str(champion_id))

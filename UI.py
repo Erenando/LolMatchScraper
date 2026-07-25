@@ -3,12 +3,16 @@ from tkinter import messagebox
 import threading
 import multiprocessing
 import re
+import json
+import os
+import webbrowser
 from PIL import Image, ImageTk
 from CustomGameJSONParser import process_game
 from GoogleAPIConnector import upload_to_sheets
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
+OWN_TEAM_NOT_FOUND = "OWN_TEAM_NOT_FOUND"
 
 
 class App(ctk.CTk):
@@ -16,14 +20,17 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title("LoL Match Scraper")
-        self.geometry("620x760")
+        self.geometry("680x860")
 
         self.teams = self.load_teams()
+        self.own_team_name = self.teams[0] if self.teams else OWN_TEAM_NOT_FOUND
+        self.target_sheet_link = self.load_target_sheet_link()
+
+        self.gametype_vars = ["Scrim", "Official", "Tournament"]
 
         # --- HEADER ---
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.header_frame.pack(pady=(20, 10))
-
         ctk.CTkLabel(self.header_frame, text="MATCH SCRAPER", font=("Impact", 28), text_color="#eeeeee").pack()
         ctk.CTkLabel(
             self.header_frame,
@@ -32,111 +39,107 @@ class App(ctk.CTk):
             text_color="gray",
         ).pack()
 
-        # --- SECTION 1: SETTINGS ---
+        # --- SECTION 1: CONFIGURATION ---
         self.settings_frame = ctk.CTkFrame(self, fg_color=("#2b2b2b", "#2b2b2b"), corner_radius=10)
         self.settings_frame.pack(pady=10, padx=20, fill="x")
 
-        # Title for Section
         ctk.CTkLabel(self.settings_frame, text="CONFIGURATION", font=("Arial", 11, "bold"), text_color="gray").pack(
-            pady=(10, 5), padx=15, anchor="w")
+            pady=(10, 6), padx=15, anchor="w"
+        )
 
-        # Row 1: Team Sheet Selection
-        self.team_dropdown = ctk.CTkComboBox(self.settings_frame, values=list(self.teams.values()), width=400,
-                                             height=35, font=("Arial", 14))
-        self.team_dropdown.pack(pady=(0, 15), padx=20, fill="x")
-        if list(self.teams.values()):
-            self.team_dropdown.set(list(self.teams.values())[0])
+        self.config_row = ctk.CTkFrame(self.settings_frame, fg_color="transparent")
+        self.config_row.pack(pady=(0, 12), padx=20, fill="x")
 
-        # Row 2: Grid for Meta Data
-        self.meta_grid = ctk.CTkFrame(self.settings_frame, fg_color="transparent")
-        self.meta_grid.pack(pady=(0, 15), padx=20, fill="x")
-
-        # --- Left Column (Game Type) ---
-        self.meta_left = ctk.CTkFrame(self.meta_grid, fg_color="transparent")
-        self.meta_left.pack(side="left", fill="x", expand=True, padx=(0, 10))
-
-        # Label Game Type
-        ctk.CTkLabel(self.meta_left, text="Game Type", font=("Arial", 11, "bold"), text_color="gray", anchor="w").pack(
-            fill="x", pady=(0, 2))
-
-        # Dropdown Game Type
-        self.gametype_vars = ["Scrim", "Official", "Tournament"]
+        self.config_game_type = ctk.CTkFrame(self.config_row, fg_color="transparent")
+        self.config_game_type.pack(side="left", fill="x", padx=(0, 10))
+        ctk.CTkLabel(self.config_game_type, text="Game Type", font=("Arial", 11, "bold"), text_color="gray", anchor="w").pack(
+            fill="x", pady=(0, 2)
+        )
         self.gametype_dropdown = ctk.CTkComboBox(
-            self.meta_left, values=self.gametype_vars, height=35, state="readonly", command=self.check_inputs
+            self.config_game_type, values=self.gametype_vars, height=35, width=170, state="readonly", command=self.check_inputs
         )
         self.gametype_dropdown.set("Scrim")
         self.gametype_dropdown.pack(fill="x")
 
-        # --- Right Column (Match Number) ---
-        self.meta_right = ctk.CTkFrame(self.meta_grid, fg_color="transparent")
-        self.meta_right.pack(side="left", fill="x", expand=True, padx=(10, 0))
-
-        # Label Match Number
-        ctk.CTkLabel(self.meta_right, text="Match Number", font=("Arial", 11, "bold"), text_color="gray",
-                     anchor="w").pack(fill="x", pady=(0, 2))
-
-        # Dropdown Match Number
-        self.game_nr_vars = ["1", "2", "3", "4", "5"]
-        self.game_nr_dropdown = ctk.CTkComboBox(
-            self.meta_right, values=self.game_nr_vars, height=35, state="readonly", command=self.check_inputs
+        self.config_own_team = ctk.CTkFrame(self.config_row, fg_color="transparent")
+        self.config_own_team.pack(side="left", fill="x", padx=(0, 10))
+        ctk.CTkLabel(self.config_own_team, text="Own Team", font=("Arial", 11, "bold"), text_color="gray", anchor="w").pack(
+            fill="x", pady=(0, 2)
         )
-        self.game_nr_dropdown.set("1")
-        self.game_nr_dropdown.pack(fill="x")
-
-        # --- SECTION 2: MATCHUP ---
-        self.matchup_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.matchup_frame.pack(pady=10, padx=20, fill="x")
-
-        # Blue Side
-        self.blue_container = ctk.CTkFrame(self.matchup_frame, fg_color="transparent")
-        self.blue_container.pack(side="left", expand=True, fill="x")
-        ctk.CTkLabel(self.blue_container, text="TEAM BLUE", text_color="#3b82f6", font=("Arial", 12, "bold")).pack(
-            anchor="w")
-
-        self.blue_entry = ctk.CTkEntry(self.blue_container, placeholder_text="Blue Team Name", height=40,
-                                       border_color="#3b82f6", border_width=2)
-        self.blue_entry.pack(fill="x", pady=5)
-        self.blue_entry.bind("<KeyRelease>", self.check_inputs)
-
-        # --- CENTER: VS & SWAP BUTTON ---
-        self.vs_frame = ctk.CTkFrame(self.matchup_frame, fg_color="transparent")
-        self.vs_frame.pack(side="left", padx=10)
-
-        ctk.CTkLabel(self.vs_frame, text="VS", font=("Arial Black", 10), text_color="gray").pack(pady=(0, 2))
-
-        self.swap_btn = ctk.CTkButton(
-            self.vs_frame,
-            text="↔",
-            width=40,
-            height=30,
-            font=("Arial", 18),
-            fg_color="#333333",
-            hover_color="#444444",
-            command=self.swap_teams
+        self.own_team_label = ctk.CTkLabel(
+            self.config_own_team,
+            text=self.own_team_name,
+            font=("Arial", 13, "bold"),
+            text_color="#e5e7eb",
+            fg_color="#1f2937",
+            corner_radius=8,
+            height=35,
+            width=170,
+            anchor="w"
         )
-        self.swap_btn.pack()
+        self.own_team_label.pack(fill="x")
 
-        # Red Side
-        self.red_container = ctk.CTkFrame(self.matchup_frame, fg_color="transparent")
-        self.red_container.pack(side="left", expand=True, fill="x")
-        ctk.CTkLabel(self.red_container, text="TEAM RED", text_color="#ef4444", font=("Arial", 12, "bold")).pack(
-            anchor="e")
+        self.config_enemy_team = ctk.CTkFrame(self.config_row, fg_color="transparent")
+        self.config_enemy_team.pack(side="left", fill="x", expand=True)
+        ctk.CTkLabel(self.config_enemy_team, text="Enemy Team", font=("Arial", 11, "bold"), text_color="gray", anchor="w").pack(
+            fill="x", pady=(0, 2)
+        )
+        self.enemy_team_entry = ctk.CTkEntry(
+            self.config_enemy_team,
+            placeholder_text="Enemy Team Name",
+            height=38,
+            font=("Arial", 14)
+        )
+        self.enemy_team_entry.pack(fill="x")
+        self.enemy_team_entry.bind("<KeyRelease>", self.check_inputs)
 
-        self.red_entry = ctk.CTkEntry(self.red_container, placeholder_text="Red Team Name", height=40,
-                                      border_color="#ef4444", border_width=2,
-                                      justify="right")
-        self.red_entry.pack(fill="x", pady=5)
-        self.red_entry.bind("<KeyRelease>", self.check_inputs)
+        # --- SECTION 2: MATCH LINES ---
+        self.matches_frame = ctk.CTkFrame(self, fg_color=("#2b2b2b", "#2b2b2b"), corner_radius=10)
+        self.matches_frame.pack(pady=10, padx=20, fill="x")
 
-        # --- SECTION 3: GAME ID & ACTION ---
+        ctk.CTkLabel(self.matches_frame, text="MATCH INPUT", font=("Arial", 11, "bold"), text_color="gray").pack(
+            pady=(10, 6), padx=15, anchor="w"
+        )
+        header_frame = ctk.CTkFrame(self.matches_frame, fg_color="#1f2937", corner_radius=6)
+        header_frame.pack(fill="x", padx=20, pady=(0, 10))
+        ctk.CTkLabel(header_frame, text="Match Nr.", width=70, anchor="w", font=("Arial", 11, "bold")).pack(side="left", padx=(10, 0), pady=6)
+        ctk.CTkLabel(header_frame, text="Match ID", anchor="w", font=("Arial", 11, "bold")).pack(side="left", fill="x", expand=True, padx=(12, 0), pady=6)
+        ctk.CTkLabel(header_frame, text="Own Team Side", width=140, anchor="w", font=("Arial", 11, "bold")).pack(side="left", padx=(12, 8), pady=6)
+
+        self.match_rows_container = ctk.CTkScrollableFrame(
+            self.matches_frame,
+            fg_color="transparent",
+            height=150
+        )
+        self.match_rows_container.pack(fill="x", padx=20, pady=(0, 8))
+
+        self.match_rows = []
+        self.add_match_btn = ctk.CTkButton(
+            self.matches_frame,
+            text="+ ADD MATCH ROW",
+            height=32,
+            font=("Arial", 11, "bold"),
+            fg_color="#2563eb",
+            hover_color="#1d4ed8",
+            command=self.add_match_row
+        )
+        self.add_match_btn.pack(fill="x", padx=20, pady=(0, 8))
+
+        for _ in range(3):
+            self.add_match_row()
+
+        self.match_feedback = ctk.CTkLabel(
+            self.matches_frame,
+            text="No match IDs entered yet.",
+            font=("Arial", 11),
+            text_color="gray",
+            anchor="w"
+        )
+        self.match_feedback.pack(fill="x", padx=20, pady=(0, 10))
+
+        # --- SECTION 3: ACTION ---
         self.action_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.action_frame.pack(pady=20, padx=20, fill="x")
-
-        ctk.CTkLabel(self.action_frame, text="GAME ID", font=("Arial", 12, "bold")).pack(anchor="w")
-        self.game_id_entry = ctk.CTkEntry(self.action_frame, placeholder_text="e.g. 7557023906 or EUW1_7557023906", height=45,
-                                          font=("Arial", 16))
-        self.game_id_entry.pack(fill="x", pady=(5, 20))
-        self.game_id_entry.bind("<KeyRelease>", self.check_inputs)
+        self.action_frame.pack(pady=8, padx=20, fill="x")
 
         self.start_button = ctk.CTkButton(
             self.action_frame,
@@ -151,67 +154,64 @@ class App(ctk.CTk):
         )
         self.start_button.pack(fill="x")
 
+        self.open_sheet_button = ctk.CTkButton(
+            self.action_frame,
+            text="OPEN GOOGLE SHEET",
+            font=("Arial", 12, "bold"),
+            height=38,
+            fg_color="#1f2937",
+            hover_color="#374151",
+            command=self.open_target_sheet,
+            state="normal" if self.target_sheet_link else "disabled"
+        )
+        self.open_sheet_button.pack(fill="x", pady=(8, 0))
+
         self.progress_bar = ctk.CTkProgressBar(self, mode="indeterminate")
         self.progress_bar.pack(padx=20, pady=(8, 2), fill="x")
         self.progress_bar.stop()
         self.progress_bar.set(0)
 
-        self.status_label = ctk.CTkLabel(self, text="Fill in all fields and start the process.", font=("Arial", 12), wraplength=500)
+        self.status_label = ctk.CTkLabel(self, text="Fill in all fields and start the process.", font=("Arial", 12), wraplength=560)
         self.status_label.pack(pady=5)
 
-        # --- FOOTER ---
-        self.footer_frame = ctk.CTkFrame(self, fg_color="transparent", height=60)
-        self.footer_frame.pack(side="bottom", fill="x", padx=15, pady=15)
-
-        # Copyright
-        self.copyright_label = ctk.CTkLabel(
-            self.footer_frame,
-            text="© by Eren | Discord: Erenando",
-            font=("Arial", 15),
+        self.watermark_label = ctk.CTkLabel(
+            self,
+            text="@by Eren | Discord: Erenando",
+            font=("Arial", 14),
             text_color="gray"
         )
-        self.copyright_label.place(relx=1.0, rely=0.5, anchor="e")
+        self.watermark_label.place(relx=1.0, rely=1.0, anchor="se", x=-14, y=-10)
+        self.watermark_label.lift()
 
-        # Logo Logic
         image_path = "img/icon.png"
         try:
             img_open = Image.open(image_path)
-            # Icon App
             icon_photo = ImageTk.PhotoImage(img_open)
             self.wm_iconphoto(True, icon_photo)
-
-            # Logo Footer
-            my_logo = ctk.CTkImage(light_image=img_open, dark_image=img_open, size=(50, 50))
-            self.logo_label_corner = ctk.CTkLabel(self.footer_frame, image=my_logo, text="")
-            self.logo_label_corner.place(relx=0.0, rely=0.5, anchor="w")
-
         except Exception:
-            self.logo_label_corner = ctk.CTkLabel(self.footer_frame, text="ACE", font=("Impact", 20))
-            self.logo_label_corner.place(relx=0.0, rely=0.5, anchor="w")
+            pass
 
-        self.team_dropdown.configure(command=self.check_inputs)
         self.check_inputs()
 
     def load_teams(self):
-        teams = {}
+        teams = []
         try:
             with open("teams.txt", encoding="utf-8") as file:
                 for line in file:
                     name = line.strip().upper()
-                    if name: teams[name] = name
+                    if name:
+                        teams.append(name)
             return teams
         except OSError:
-            return {"ERROR": "Teams not found"}
+            return []
 
-    def swap_teams(self):
-        blue_val = self.blue_entry.get()
-        red_val = self.red_entry.get()
-
-        self.blue_entry.delete(0, "end")
-        self.red_entry.delete(0, "end")
-
-        self.blue_entry.insert(0, red_val)
-        self.red_entry.insert(0, blue_val)
+    def load_target_sheet_link(self):
+        try:
+            with open("config.json", encoding="utf-8") as config_file:
+                config = json.load(config_file)
+            return str(config.get("google_sheets_link", "")).strip()
+        except (OSError, json.JSONDecodeError):
+            return ""
 
     def _normalize_game_id(self, value: str) -> str:
         raw = value.strip()
@@ -226,104 +226,318 @@ class App(ctk.CTk):
     def _set_controls_enabled(self, enabled: bool) -> None:
         entry_state = "normal" if enabled else "disabled"
         combo_state = "readonly" if enabled else "disabled"
-        self.team_dropdown.configure(state=combo_state)
         self.gametype_dropdown.configure(state=combo_state)
-        self.game_nr_dropdown.configure(state=combo_state)
-        self.blue_entry.configure(state=entry_state)
-        self.red_entry.configure(state=entry_state)
-        self.game_id_entry.configure(state=entry_state)
-        self.swap_btn.configure(state=entry_state)
+        self.enemy_team_entry.configure(state=entry_state)
+        self.add_match_btn.configure(state=entry_state)
+        for row in self.match_rows:
+            row["id_entry"].configure(state=entry_state)
+            row["side_dropdown"].configure(state=combo_state)
+            row["remove_btn"].configure(state=entry_state)
+
+    def _rows_text(self, rows) -> str:
+        return ", ".join(str(row) for row in rows)
+
+    def _reset_action_state(self) -> None:
+        self._set_controls_enabled(True)
+        self.start_button.configure(text="FETCH & UPLOAD DATA", fg_color="#10b981")
+        self.check_inputs()
+
+    def _enable_open_sheet_button_if_available(self) -> None:
+        if self.target_sheet_link:
+            self.open_sheet_button.configure(state="normal")
+
+    def _format_failed_details(self, failed_jobs) -> str:
+        return "\n".join(f"{job['line_text']}: {error}" for job, error in failed_jobs)
+
+    def _reindex_match_rows(self) -> None:
+        for index, row in enumerate(self.match_rows, start=1):
+            row["row_index"] = index
+            row["match_label"].configure(text=str(index))
+
+    def add_match_row(self):
+        row_frame = ctk.CTkFrame(self.match_rows_container, fg_color="transparent")
+        row_frame.pack(fill="x", pady=(0, 8))
+
+        match_label = ctk.CTkLabel(row_frame, text=str(len(self.match_rows) + 1), width=70, anchor="w")
+        match_label.pack(side="left", padx=(10, 0))
+
+        id_entry = ctk.CTkEntry(
+            row_frame,
+            placeholder_text="7557023906 or EUW1_7557023906",
+            height=34,
+            font=("Arial", 13)
+        )
+        id_entry.pack(side="left", fill="x", expand=True, padx=(8, 10))
+        id_entry.bind("<KeyRelease>", self.check_inputs)
+
+        side_dropdown = ctk.CTkComboBox(
+            row_frame,
+            values=["Blue", "Red"],
+            width=130,
+            height=34,
+            state="readonly",
+            fg_color="#1f2937",
+            button_color="#2563eb",
+            button_hover_color="#1d4ed8"
+        )
+        side_dropdown.set("Blue")
+        side_dropdown.configure(command=self.check_inputs)
+        side_dropdown.pack(side="left", padx=(2, 0))
+
+        remove_btn = ctk.CTkButton(
+            row_frame,
+            text="✕",
+            width=34,
+            height=34,
+            fg_color="#7f1d1d",
+            hover_color="#991b1b",
+            command=lambda rf=row_frame: self.remove_match_row(rf)
+        )
+        remove_btn.pack(side="left", padx=(8, 0))
+
+        self.match_rows.append(
+            {
+                "row_index": len(self.match_rows) + 1,
+                "frame": row_frame,
+                "match_label": match_label,
+                "id_entry": id_entry,
+                "side_dropdown": side_dropdown,
+                "remove_btn": remove_btn,
+            }
+        )
+        self._reindex_match_rows()
+        if hasattr(self, "match_feedback"):
+            self.check_inputs()
+
+    def remove_match_row(self, row_frame):
+        if len(self.match_rows) == 1:
+            self.match_rows[0]["id_entry"].delete(0, "end")
+            self.match_rows[0]["side_dropdown"].set("Blue")
+            self.check_inputs()
+            return
+
+        for index, row in enumerate(self.match_rows):
+            if row["frame"] == row_frame:
+                row["frame"].destroy()
+                self.match_rows.pop(index)
+                break
+
+        self._reindex_match_rows()
+        self.check_inputs()
+
+    def _collect_match_jobs(self):
+        enemy_team = self.enemy_team_entry.get().strip()
+        jobs = []
+        invalid_rows = []
+
+        for row in self.match_rows:
+            row_index = row["row_index"]
+            raw_game_id = row["id_entry"].get().strip()
+            if not raw_game_id:
+                continue
+
+            normalized_game_id = self._normalize_game_id(raw_game_id)
+            if not normalized_game_id:
+                invalid_rows.append(row_index)
+                continue
+
+            side = row["side_dropdown"].get()
+            if side not in ("Blue", "Red"):
+                invalid_rows.append(row_index)
+                continue
+
+            if side == "Blue":
+                blue_name = self.own_team_name
+                red_name = enemy_team
+            else:
+                blue_name = enemy_team
+                red_name = self.own_team_name
+
+            jobs.append(
+                {
+                    "row_index": row_index,
+                    "game_id": normalized_game_id,
+                    "match_number": str(row_index),
+                    "blue_name": blue_name,
+                    "red_name": red_name,
+                    "line_text": f"Match {row_index}: {normalized_game_id} ({side})"
+                }
+            )
+
+        return jobs, invalid_rows
 
     def check_inputs(self, event=None):
-        normalized_game_id = self._normalize_game_id(self.game_id_entry.get())
-        has_teams = bool(self.blue_entry.get().strip()) and bool(self.red_entry.get().strip())
+        enemy_team = self.enemy_team_entry.get().strip()
+        jobs, invalid_rows = self._collect_match_jobs()
         has_game_type = self.gametype_dropdown.get() in self.gametype_vars
+        has_enemy = bool(enemy_team)
+        has_valid_jobs = bool(jobs) and not bool(invalid_rows)
+        own_team_ok = self.own_team_name != OWN_TEAM_NOT_FOUND
 
-        if normalized_game_id and has_teams and has_game_type:
+        if not own_team_ok:
+            self.match_feedback.configure(text="teams.txt is empty or missing.", text_color="#f87171")
+        elif invalid_rows:
+            rows_text = self._rows_text(invalid_rows)
+            self.match_feedback.configure(text=f"Invalid Match ID in row(s): {rows_text}", text_color="#f87171")
+        elif jobs:
+            self.match_feedback.configure(text=f"{len(jobs)} valid match line(s) ready.", text_color="#4ade80")
+        else:
+            self.match_feedback.configure(text="No match IDs entered yet.", text_color="gray")
+
+        if has_game_type and has_enemy and has_valid_jobs and own_team_ok:
             self.start_button.configure(state="normal", fg_color="#10b981")
         else:
             self.start_button.configure(state="disabled", fg_color="#333333")
 
     def run_process(self):
-        worksheet_team = self.team_dropdown.get()
-        blue_name = self.blue_entry.get().strip()
-        red_name = self.red_entry.get().strip()
-        game_id = self._normalize_game_id(self.game_id_entry.get())
-
-
+        worksheet_team = self.own_team_name
+        enemy_team = self.enemy_team_entry.get().strip()
         game_type = self.gametype_dropdown.get()
-        match_number = self.game_nr_dropdown.get().strip()
+        jobs, invalid_rows = self._collect_match_jobs()
 
-        if not blue_name or not red_name:
-            messagebox.showwarning("Missing input", "Please enter both team names.")
+        if self.own_team_name == OWN_TEAM_NOT_FOUND:
+            messagebox.showwarning("Missing input", "Please add your own team as the first line in teams.txt.")
+            return
+
+        if not enemy_team:
+            messagebox.showwarning("Missing input", "Please enter the enemy team name.")
             return
 
         if game_type not in self.gametype_vars:
             messagebox.showwarning("Missing input", "Please select a game type.")
             return
 
-        if not game_id:
-            messagebox.showwarning("Missing input", "Please enter a valid game ID.")
+        if invalid_rows:
+            rows_text = self._rows_text(invalid_rows)
+            messagebox.showwarning("Invalid input", f"Invalid Match ID in row(s): {rows_text}")
             return
 
-        # UI Update
-        self.game_id_entry.delete(0, "end")
-        self.game_id_entry.insert(0, game_id)
+        if not jobs:
+            messagebox.showwarning("Missing input", "Please enter at least one valid Match ID.")
+            return
+
         self._set_controls_enabled(False)
         self.start_button.configure(state="disabled", text="PROCESSING...", fg_color="#eab308")
-        self.status_label.configure(text="Fetching match data...", text_color="white")
+        self.status_label.configure(text=f"Batch mode active: processing {len(jobs)} match(es)...", text_color="white")
         self.progress_bar.start()
 
         thread = threading.Thread(
             target=self.worker,
-            args=(worksheet_team, blue_name, red_name, game_id, game_type, match_number),
+            args=(worksheet_team, jobs, game_type),
             daemon=True
         )
         thread.start()
 
-    def worker(self, worksheet_team, blue_name, red_name, game_id, game_type, match_number):
+    def worker(self, worksheet_team, jobs, game_type):
         try:
-            parsed_data, _, _ = process_game(game_id, blue_name, red_name, game_type, match_number)
+            total = len(jobs)
+            successful_jobs = []
+            failed_jobs = []
 
-            self.after(0, lambda: self.status_label.configure(text="Uploading data to Google Sheets...", text_color="#60a5fa"))
-            upload_to_sheets(parsed_data, worksheet_team)
+            for index, job in enumerate(jobs, start=1):
+                game_id = job["game_id"]
+                self.after(
+                    0,
+                    lambda i=index, t=total, g=game_id: self.status_label.configure(
+                        text=f"Fetching match {i}/{t}: {g}",
+                        text_color="white"
+                    )
+                )
 
-            self.after(0, lambda: self.show_success(game_id, match_number))
+                try:
+                    parsed_data, _, _ = process_game(
+                        game_id,
+                        job["blue_name"],
+                        job["red_name"],
+                        game_type,
+                        job["match_number"],
+                    )
+                    self.after(
+                        0,
+                        lambda i=index, t=total: self.status_label.configure(
+                            text=f"Uploading match {i}/{t} to Google Sheets...",
+                            text_color="#60a5fa"
+                        )
+                    )
+                    upload_to_sheets(parsed_data, worksheet_team)
+                    successful_jobs.append(job)
+                except Exception as per_game_error:
+                    failed_jobs.append((job, str(per_game_error) if str(per_game_error) else type(per_game_error).__name__))
+
+            self.after(0, lambda: self.show_batch_result(successful_jobs, failed_jobs))
 
         except Exception as e:
             error_text = str(e) if str(e) else f"Error ({type(e).__name__})"
             print(f"WORKER ERROR: {error_text}")
             self.after(0, lambda: self.show_error(error_text))
 
-    def show_success(self, game_id, processed_match_number):
+    def show_batch_result(self, successful_jobs, failed_jobs):
         self.progress_bar.stop()
-        self.progress_bar.set(1)
-        self.status_label.configure(text=f"Success: Game {game_id} has been uploaded.", text_color="#4ade80")
-        messagebox.showinfo("Success", f"Data for game {game_id} was processed successfully.")
+        self.progress_bar.set(1 if successful_jobs else 0)
 
-        self.game_id_entry.delete(0, 'end')
+        success_count = len(successful_jobs)
+        failed_count = len(failed_jobs)
+        total_count = success_count + failed_count
 
-        current_nr = str(processed_match_number).strip()
-        if current_nr.isdigit():
-            next_nr = int(current_nr) + 1
-            if next_nr > 5:
-                next_nr = 1
-            self.game_nr_dropdown.set(str(next_nr))
+        if failed_count == 0:
+            self.status_label.configure(
+                text=f"Success: {success_count}/{total_count} matches uploaded.",
+                text_color="#4ade80"
+            )
+            messagebox.showinfo("Success", f"Uploaded {success_count} match(es) successfully.")
+            for row in self.match_rows:
+                row["id_entry"].delete(0, "end")
+            self._enable_open_sheet_button_if_available()
+        elif success_count == 0:
+            self.status_label.configure(
+                text=f"Error: 0/{total_count} matches uploaded.",
+                text_color="#f87171"
+            )
+            failed_details = self._format_failed_details(failed_jobs)
+            messagebox.showerror("Batch failed", f"No matches were uploaded.\n\n{failed_details}")
         else:
-            self.game_nr_dropdown.set("1")
+            self.status_label.configure(
+                text=f"Partial success: {success_count}/{total_count} matches uploaded.",
+                text_color="#fbbf24"
+            )
+            failed_details = self._format_failed_details(failed_jobs)
+            messagebox.showwarning(
+                "Batch partially completed",
+                f"Uploaded {success_count} of {total_count} matches.\n\nFailed:\n{failed_details}"
+            )
+            self._enable_open_sheet_button_if_available()
 
-        self._set_controls_enabled(True)
-        self.start_button.configure(text="FETCH & UPLOAD DATA", fg_color="#10b981")
-        self.check_inputs()
+        if failed_jobs:
+            failed_rows = {job["row_index"] for job, _ in failed_jobs}
+            for row in self.match_rows:
+                if row["row_index"] not in failed_rows:
+                    row["id_entry"].delete(0, "end")
+
+        self._reset_action_state()
 
     def show_error(self, error_msg):
         self.progress_bar.stop()
         self.progress_bar.set(0)
         self.status_label.configure(text=f"Error: {error_msg}", text_color="#f87171")
         messagebox.showerror("Error", f"Process failed:\n{error_msg}")
-        self._set_controls_enabled(True)
-        self.start_button.configure(text="FETCH & UPLOAD DATA", fg_color="#10b981")
-        self.check_inputs()
+        self._reset_action_state()
+
+    def open_target_sheet(self):
+        self.target_sheet_link = self.load_target_sheet_link()
+        if not self.target_sheet_link:
+            messagebox.showwarning("Missing link", "No Google Sheets link found in config.json.")
+            return
+
+        link = self.target_sheet_link.strip()
+        if not re.match(r"^https?://", link, re.IGNORECASE):
+            link = f"https://{link}"
+
+        try:
+            opened = webbrowser.open_new_tab(link)
+            if not opened:
+                os.startfile(link)
+        except Exception as exc:
+            messagebox.showerror("Open failed", f"Could not open Google Sheet:\n{exc}")
 
 
 if __name__ == "__main__":
