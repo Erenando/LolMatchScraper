@@ -1,10 +1,10 @@
 # LoL Match Scraper
 
 ## Project Overview
-A tool for automatically importing League of Legends match data into Google Sheets. Ideal for Prime League teams, scrims, and custom games.
+A desktop tool for importing League of Legends match stats into Google Sheets. It supports custom/scrim workflows with team-based worksheet targets.
 
 ## Description
-This application fetches match data directly from the League Client (LCU) or through the Riot API fallback. The data is transformed and uploaded to a Google Spreadsheet without overwriting existing rows.
+The app fetches match data from the local League Client (LCU). If LCU is unavailable, it automatically falls back to the Riot Match API. Match rows are parsed, enriched with champion names from Data Dragon, and appended to Google Sheets (no overwrite).
 
 ### System Components
 
@@ -12,7 +12,7 @@ This application fetches match data directly from the League Client (LCU) or thr
 |:--- |:--- |
 | `UI.py` | Main entry point with the CustomTkinter graphical user interface. |
 | `LCUDriver.py` | Connects to the local League Client or falls back to the Riot API. |
-| `CustomGameJSONParser.py` | Transforms raw match payloads into row data for Google Sheets. |
+| `CustomGameJSONParser.py` | Transforms raw match payloads into upload rows |
 | `GoogleAPIConnector.py` | Handles Google authentication and writing rows to the target worksheet. |
 
 ---
@@ -49,9 +49,20 @@ Configure your file like this:
 2. **Start:** Run `LoLMatchScraper.exe`.
 3. **Input in the UI:**
    * **Team selection:** Defines the destination worksheet in Google Sheets.
+   * **Game Type:** Choose one of `Scrim`, `Official`, or `Tournament`.
+   * **Match Number:** Choose `1` to `5` (auto-increments after success).
    * **Team Blue / Team Red:** Enter both team names.
-   * **Game ID:** Paste the match ID from the LoL client history (for example `7557023906` or `EUW1_7557023906`).
+   * **Game ID:** Paste the match ID from match history (for example `7557023906` or `EUW1_7557023906`). The app normalizes both formats.
 4. **Finish:** Click **"FETCH & UPLOAD DATA"**. The app shows status feedback and a progress indicator while processing.
+
+### Uploaded Row Fields
+Each participant is uploaded as one row with:
+
+`team, player, win, side, champion, kills, deaths, assists, damage_dealt, damage_taken, wards_placed, wards_killed, control_wards, gold, cs, duration, game_type, match_id, match_number`
+
+Notes:
+* `player` is stored as `name#hashtag` when a hashtag is available; otherwise only `name`.
+* Rows are appended using Google Sheets `append_rows` starting at table range `A5`.
 
 ---
 
