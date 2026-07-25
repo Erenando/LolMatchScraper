@@ -2,6 +2,7 @@ import json
 import os
 import re
 import threading
+import time
 
 import gspread
 from google.oauth2.service_account import Credentials
@@ -90,10 +91,30 @@ def upload_to_sheets(game_data: list, worksheet_team_name: str) -> None:
 
     ws = _get_worksheet(sheets_id, worksheet_name)
     values_only_table = [list(row.values()) for row in game_data]
+    max_attempts = 3
 
-    ws.append_rows(
-        values_only_table,
-        value_input_option="USER_ENTERED",
-        insert_data_option="INSERT_ROWS",
-        table_range="A5",
-    )
+    for attempt in range(1, max_attempts + 1):
+        try:
+            ws.append_rows(
+                values_only_table,
+                value_input_option="USER_ENTERED",
+                insert_data_option="INSERT_ROWS",
+                table_range="A5",
+            )
+            return
+        except gspread.exceptions.APIError as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+
+            if status_code == 403:
+                raise PermissionError("Google Sheets access denied (403). Share the sheet with the service account.") from exc
+
+            if status_code in (429, 500, 502, 503, 504) and attempt < max_attempts:
+                time.sleep(0.8 * attempt)
+                continue
+
+            raise ConnectionError(f"Google Sheets API error ({status_code}): {exc}") from exc
+        except Exception as exc:
+            if attempt < max_attempts:
+                time.sleep(0.8 * attempt)
+                continue
+            raise ConnectionError(f"Google Sheets upload failed after retries: {exc}") from exc

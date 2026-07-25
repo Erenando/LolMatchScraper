@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import time
 
 import requests
 from LCUDriver import try_fetch_lcu
@@ -10,6 +11,27 @@ _champion_map_cache = {}
 _patch_cache = None
 _patch_cache_mtime = None
 _http_session = requests.Session()
+
+
+def _fetch_json_with_retries(url: str, source_name: str, attempts: int = 3, timeout: int = 10):
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            response = _http_session.get(url, timeout=timeout)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.Timeout as exc:
+            last_error = exc
+            if attempt == attempts:
+                raise TimeoutError(f"{source_name} request timed out after {attempts} attempts.") from exc
+        except requests.exceptions.RequestException as exc:
+            last_error = exc
+            if attempt == attempts:
+                raise ConnectionError(f"{source_name} request failed after {attempts} attempts: {exc}") from exc
+
+        time.sleep(0.8 * attempt)
+
+    raise ConnectionError(f"{source_name} request failed: {last_error}")
 
 
 def _load_patch_id() -> str:
@@ -44,9 +66,7 @@ def _get_champion_map(patch_id: str) -> dict:
             return _champion_map_cache[patch_id]
 
     url = f"https://ddragon.leagueoflegends.com/cdn/{patch_id}/data/en_US/champion.json"
-    response = _http_session.get(url, timeout=10)
-    response.raise_for_status()
-    data = response.json()
+    data = _fetch_json_with_retries(url, "Data Dragon champion data")
     champions = data.get("data", {})
     champion_map = {champ["key"]: champ["id"] for champ in champions.values()}
     if not champion_map:

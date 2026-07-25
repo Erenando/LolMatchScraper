@@ -2,6 +2,7 @@ import multiprocessing
 import json
 import os
 import threading
+import time
 
 import requests
 from lcu_driver import Connector
@@ -89,18 +90,49 @@ def fetch_from_riot_api(game_id: str):
         full_game_id = f"EUW1_{game_id}" if "_" not in str(game_id) else game_id
         url = f"https://{routing_region}.api.riotgames.com/lol/match/v5/matches/{full_game_id}"
         headers = {"X-Riot-Token": api_key}
+        max_attempts = 3
 
-        response = _riot_http_session.get(url, headers=headers, timeout=10)
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = _riot_http_session.get(url, headers=headers, timeout=10)
+            except requests.exceptions.Timeout as exc:
+                if attempt == max_attempts:
+                    raise TimeoutError("Riot API request timed out after multiple retries.") from exc
+                time.sleep(0.8 * attempt)
+                continue
+            except requests.exceptions.RequestException as exc:
+                if attempt == max_attempts:
+                    raise ConnectionError(f"Riot API request failed: {exc}") from exc
+                time.sleep(0.8 * attempt)
+                continue
 
-        if response.status_code == 200:
-            print("Data successfully fetched via RIOT API.")
-            return response.json()
-        elif response.status_code == 404:
-            raise ValueError(f"Game ID {game_id} not found (404).")
-        else:
-            raise Exception(f"Riot API Error: {response.status_code}")
+            if response.status_code == 200:
+                print("Data successfully fetched via RIOT API.")
+                return response.json()
+
+            if response.status_code == 404:
+                raise ValueError(f"Game ID {game_id} not found (404).")
+
+            if response.status_code in (401, 403):
+                raise PermissionError("Riot API key is invalid or unauthorized (401/403).")
+
+            if response.status_code == 429:
+                if attempt == max_attempts:
+                    raise RuntimeError("Riot API rate limit reached (429). Please retry shortly.")
+                retry_after = response.headers.get("Retry-After")
+                wait_seconds = float(retry_after) if retry_after and retry_after.isdigit() else (0.8 * attempt)
+                time.sleep(wait_seconds)
+                continue
+
+            if 500 <= response.status_code <= 599:
+                if attempt == max_attempts:
+                    raise RuntimeError(f"Riot API server error ({response.status_code}) after retries.")
+                time.sleep(0.8 * attempt)
+                continue
+
+            raise RuntimeError(f"Riot API returned error status {response.status_code}.")
+
+        raise RuntimeError("Riot API request failed after retries.")
 
     except FileNotFoundError:
         raise Exception("config.json not found.")
-    except Exception as e:
-        raise e
