@@ -1,8 +1,7 @@
 {
-  "google_sheets_link": "",
-  "google_sheets_name" : "Stats_",
-  "riot_patch_id" : "15.24.1",
-  "riot_api_key": "",
-  "dome_api_url": "",
-  "dome_api_key": ""
+  "google_sheets_link": "YOUR_GOOGLE_SHEET_LINK",
+  "google_sheets_name": "Stats_",
+  "riot_patch_id": "16.13.1",
+  "riot_api_key": "YOUR_RIOT_API_KEY",
+  "riot_routing_region": "europe"
 }

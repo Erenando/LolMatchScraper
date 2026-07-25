@@ -1,27 +1,62 @@
 import multiprocessing
-from lcu_driver import Connector
-import requests
 import json
+import os
+import threading
 
-def _lcu_worker(game_id, return_dict):
+import requests
+from lcu_driver import Connector
+
+_config_lock = threading.Lock()
+_config_cache = None
+_config_mtime = None
+_riot_http_session = requests.Session()
+
+
+def _lcu_worker(game_id, result_dict):
     connector = Connector()
 
     @connector.ready
     async def connect(connection):
         response = await connection.request('GET', f'/lol-match-history/v1/games/{game_id}')
         if response.status == 200:
-            return_dict['content'] = await response.json()
+            result_dict["content"] = await response.json()
         await connector.stop()
 
-    connector.start()
+    try:
+        connector.start()
+    except Exception:
+        result_dict["content"] = None
+
+
+def _load_config() -> dict:
+    global _config_cache
+    global _config_mtime
+
+    current_mtime = None
+    try:
+        current_mtime = os.path.getmtime("config.json")
+    except OSError:
+        pass
+
+    with _config_lock:
+        if _config_cache is not None and _config_mtime == current_mtime:
+            return _config_cache
+
+        with open("config.json", encoding="utf-8") as config_file:
+            config = json.load(config_file)
+
+        _config_cache = config
+        _config_mtime = current_mtime
+        return _config_cache
+
 
 def try_fetch_lcu(game_id: str, timeout_seconds: float = 8.0):
     manager = multiprocessing.Manager()
-    return_dict = manager.dict()
+    result_dict = manager.dict()
 
     print(f'Game-ID {game_id} is fetched by LCU...')
 
-    process = multiprocessing.Process(target=_lcu_worker, args=(game_id, return_dict))
+    process = multiprocessing.Process(target=_lcu_worker, args=(game_id, result_dict))
     process.start()
     process.join(timeout=timeout_seconds)
 
@@ -30,7 +65,7 @@ def try_fetch_lcu(game_id: str, timeout_seconds: float = 8.0):
         process.terminate()
         process.join()
 
-    game_content = return_dict.get('content')
+    game_content = result_dict.get("content")
 
     if game_content:
         print("Data successfully fetched via LCU.")
@@ -45,16 +80,17 @@ def try_fetch_lcu(game_id: str, timeout_seconds: float = 8.0):
 
 def fetch_from_riot_api(game_id: str):
     try:
-        with open("config.json") as f:
-            config = json.load(f)
-            api_key = config.get("riot_api_key")
-            routing_region = config.get("riot_routing_region", "europe")
+        config = _load_config()
+        api_key = config.get("riot_api_key", "").strip()
+        routing_region = config.get("riot_routing_region", "europe").strip()
+        if not api_key:
+            raise ValueError("config.json: 'riot_api_key' is missing.")
 
         full_game_id = f"EUW1_{game_id}" if "_" not in str(game_id) else game_id
         url = f"https://{routing_region}.api.riotgames.com/lol/match/v5/matches/{full_game_id}"
         headers = {"X-Riot-Token": api_key}
 
-        response = requests.get(url, headers=headers)
+        response = _riot_http_session.get(url, headers=headers, timeout=10)
 
         if response.status_code == 200:
             print("Data successfully fetched via RIOT API.")
