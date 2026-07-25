@@ -15,6 +15,7 @@ _config_cache = None
 _config_mtime = None
 _spreadsheet_cache = {}
 _worksheet_cache = {}
+RETRYABLE_API_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 def _extract_sheet_id(sheets_link: str) -> str:
@@ -80,6 +81,14 @@ def _get_worksheet(sheets_id: str, worksheet_name: str):
     return worksheet
 
 
+def _retry_wait_seconds(attempt: int) -> float:
+    return 0.8 * attempt
+
+
+def _is_retryable_status(status_code) -> bool:
+    return status_code in RETRYABLE_API_STATUS_CODES
+
+
 def upload_to_sheets(game_data: list, worksheet_team_name: str) -> None:
     if not game_data:
         raise ValueError("No game data available for upload.")
@@ -108,13 +117,13 @@ def upload_to_sheets(game_data: list, worksheet_team_name: str) -> None:
             if status_code == 403:
                 raise PermissionError("Google Sheets access denied (403). Share the sheet with the service account.") from exc
 
-            if status_code in (429, 500, 502, 503, 504) and attempt < max_attempts:
-                time.sleep(0.8 * attempt)
+            if _is_retryable_status(status_code) and attempt < max_attempts:
+                time.sleep(_retry_wait_seconds(attempt))
                 continue
 
             raise ConnectionError(f"Google Sheets API error ({status_code}): {exc}") from exc
         except Exception as exc:
             if attempt < max_attempts:
-                time.sleep(0.8 * attempt)
+                time.sleep(_retry_wait_seconds(attempt))
                 continue
             raise ConnectionError(f"Google Sheets upload failed after retries: {exc}") from exc

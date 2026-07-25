@@ -48,10 +48,10 @@ Configure your file like this:
 1. **Requirement:** If you use LCU mode, start the League of Legends client and log in.
 2. **Start:** Run `LoLMatchScraper.exe`.
 3. **Input in the UI:**
-   * **Team selection:** Defines the destination worksheet in Google Sheets.
+   * **Own Team:** Taken from the first line in `teams.txt` and shown in the UI.
    * **Game Type:** Choose one of `Scrim`, `Official`, or `Tournament`.
-   * **Match Number:** Choose `1` to `5` (auto-increments after success).
-   * **Team Blue / Team Red:** Enter both team names.
+   * **Enemy Team:** Enter the opponent team name.
+   * **Match Rows:** Add one or multiple rows, set your side (`Blue`/`Red`) per row, and provide a Match ID per row.
    * **Game ID:** Paste the match ID from match history (for example `7557023906` or `EUW1_7557023906`). The app normalizes both formats.
 4. **Finish:** Click **"FETCH & UPLOAD DATA"**. The app shows status feedback and a progress indicator while processing.
 

@@ -12,6 +12,7 @@ from GoogleAPIConnector import upload_to_sheets
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
+OWN_TEAM_NOT_FOUND = "OWN_TEAM_NOT_FOUND"
 
 
 class App(ctk.CTk):
@@ -22,7 +23,7 @@ class App(ctk.CTk):
         self.geometry("680x860")
 
         self.teams = self.load_teams()
-        self.own_team_name = self.teams[0] if self.teams else "OWN_TEAM_NOT_FOUND"
+        self.own_team_name = self.teams[0] if self.teams else OWN_TEAM_NOT_FOUND
         self.target_sheet_link = self.load_target_sheet_link()
 
         self.gametype_vars = ["Scrim", "Official", "Tournament"]
@@ -209,9 +210,7 @@ class App(ctk.CTk):
             with open("config.json", encoding="utf-8") as config_file:
                 config = json.load(config_file)
             return str(config.get("google_sheets_link", "")).strip()
-        except OSError:
-            return ""
-        except json.JSONDecodeError:
+        except (OSError, json.JSONDecodeError):
             return ""
 
     def _normalize_game_id(self, value: str) -> str:
@@ -234,6 +233,21 @@ class App(ctk.CTk):
             row["id_entry"].configure(state=entry_state)
             row["side_dropdown"].configure(state=combo_state)
             row["remove_btn"].configure(state=entry_state)
+
+    def _rows_text(self, rows) -> str:
+        return ", ".join(str(row) for row in rows)
+
+    def _reset_action_state(self) -> None:
+        self._set_controls_enabled(True)
+        self.start_button.configure(text="FETCH & UPLOAD DATA", fg_color="#10b981")
+        self.check_inputs()
+
+    def _enable_open_sheet_button_if_available(self) -> None:
+        if self.target_sheet_link:
+            self.open_sheet_button.configure(state="normal")
+
+    def _format_failed_details(self, failed_jobs) -> str:
+        return "\n".join(f"{job['line_text']}: {error}" for job, error in failed_jobs)
 
     def _reindex_match_rows(self) -> None:
         for index, row in enumerate(self.match_rows, start=1):
@@ -358,12 +372,12 @@ class App(ctk.CTk):
         has_game_type = self.gametype_dropdown.get() in self.gametype_vars
         has_enemy = bool(enemy_team)
         has_valid_jobs = bool(jobs) and not bool(invalid_rows)
-        own_team_ok = self.own_team_name != "OWN_TEAM_NOT_FOUND"
+        own_team_ok = self.own_team_name != OWN_TEAM_NOT_FOUND
 
         if not own_team_ok:
             self.match_feedback.configure(text="teams.txt is empty or missing.", text_color="#f87171")
         elif invalid_rows:
-            rows_text = ", ".join([str(i) for i in invalid_rows])
+            rows_text = self._rows_text(invalid_rows)
             self.match_feedback.configure(text=f"Invalid Match ID in row(s): {rows_text}", text_color="#f87171")
         elif jobs:
             self.match_feedback.configure(text=f"{len(jobs)} valid match line(s) ready.", text_color="#4ade80")
@@ -381,7 +395,7 @@ class App(ctk.CTk):
         game_type = self.gametype_dropdown.get()
         jobs, invalid_rows = self._collect_match_jobs()
 
-        if self.own_team_name == "OWN_TEAM_NOT_FOUND":
+        if self.own_team_name == OWN_TEAM_NOT_FOUND:
             messagebox.showwarning("Missing input", "Please add your own team as the first line in teams.txt.")
             return
 
@@ -394,7 +408,7 @@ class App(ctk.CTk):
             return
 
         if invalid_rows:
-            rows_text = ", ".join([str(i) for i in invalid_rows])
+            rows_text = self._rows_text(invalid_rows)
             messagebox.showwarning("Invalid input", f"Invalid Match ID in row(s): {rows_text}")
             return
 
@@ -473,27 +487,25 @@ class App(ctk.CTk):
             messagebox.showinfo("Success", f"Uploaded {success_count} match(es) successfully.")
             for row in self.match_rows:
                 row["id_entry"].delete(0, "end")
-            if self.target_sheet_link:
-                self.open_sheet_button.configure(state="normal")
+            self._enable_open_sheet_button_if_available()
         elif success_count == 0:
             self.status_label.configure(
                 text=f"Error: 0/{total_count} matches uploaded.",
                 text_color="#f87171"
             )
-            failed_details = "\n".join([f"{job['line_text']}: {error}" for job, error in failed_jobs])
+            failed_details = self._format_failed_details(failed_jobs)
             messagebox.showerror("Batch failed", f"No matches were uploaded.\n\n{failed_details}")
         else:
             self.status_label.configure(
                 text=f"Partial success: {success_count}/{total_count} matches uploaded.",
                 text_color="#fbbf24"
             )
-            failed_details = "\n".join([f"{job['line_text']}: {error}" for job, error in failed_jobs])
+            failed_details = self._format_failed_details(failed_jobs)
             messagebox.showwarning(
                 "Batch partially completed",
                 f"Uploaded {success_count} of {total_count} matches.\n\nFailed:\n{failed_details}"
             )
-            if self.target_sheet_link:
-                self.open_sheet_button.configure(state="normal")
+            self._enable_open_sheet_button_if_available()
 
         if failed_jobs:
             failed_rows = {job["row_index"] for job, _ in failed_jobs}
@@ -501,18 +513,14 @@ class App(ctk.CTk):
                 if row["row_index"] not in failed_rows:
                     row["id_entry"].delete(0, "end")
 
-        self._set_controls_enabled(True)
-        self.start_button.configure(text="FETCH & UPLOAD DATA", fg_color="#10b981")
-        self.check_inputs()
+        self._reset_action_state()
 
     def show_error(self, error_msg):
         self.progress_bar.stop()
         self.progress_bar.set(0)
         self.status_label.configure(text=f"Error: {error_msg}", text_color="#f87171")
         messagebox.showerror("Error", f"Process failed:\n{error_msg}")
-        self._set_controls_enabled(True)
-        self.start_button.configure(text="FETCH & UPLOAD DATA", fg_color="#10b981")
-        self.check_inputs()
+        self._reset_action_state()
 
     def open_target_sheet(self):
         self.target_sheet_link = self.load_target_sheet_link()
