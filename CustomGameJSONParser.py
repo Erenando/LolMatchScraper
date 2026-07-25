@@ -57,6 +57,14 @@ def _get_champion_map(patch_id: str) -> dict:
     return champion_map
 
 
+def _format_player_with_hashtag(name: str, hashtag: str) -> str:
+    clean_name = str(name).strip() if name is not None else ""
+    clean_tag = str(hashtag).strip().lstrip("#") if hashtag is not None else ""
+    if clean_name and clean_tag:
+        return f"{clean_name}#{clean_tag}"
+    return clean_name
+
+
 def process_game(game_id, blue_team_name, red_team_name, game_type, match_number):
     patch_id = _load_patch_id()
     champion_map = _get_champion_map(patch_id)
@@ -72,24 +80,30 @@ def process_game(game_id, blue_team_name, red_team_name, game_type, match_number
         participants = info.get("participants", [])
         game_duration_minutes = info.get("gameDuration", 0) / 60.0
         player_names_lcu = {}
+        player_hashtags_lcu = {}
     else:
         participants = raw_data.get("participants", [])
         game_duration_minutes = raw_data.get("gameDuration", 0) / 60.0
-        player_names_lcu = {
-            identity.get('participantId'): identity.get('player', {}).get('gameName', 'Unknown')
-            for identity in raw_data.get('participantIdentities', [])
-        }
+        player_names_lcu = {}
+        player_hashtags_lcu = {}
+        for identity in raw_data.get('participantIdentities', []):
+            participant_id = identity.get('participantId')
+            player_data = identity.get('player', {})
+            player_names_lcu[participant_id] = player_data.get('gameName') or player_data.get('summonerName') or 'Unknown'
+            player_hashtags_lcu[participant_id] = player_data.get('tagLine') or player_data.get('riotIdTagline') or ''
 
     data_table = []
 
     for p in participants:
         if is_riot_api:
-            name = p.get('riotIdGameName') or p.get('summonerName')
+            name = p.get('riotIdGameName') or p.get('summonerName') or 'Unknown'
+            hashtag = p.get('riotIdTagline') or ''
             win = p.get('win')
             stats = p
         else:
             p_id = p.get('participantId')
             name = player_names_lcu.get(p_id, 'Unknown')
+            hashtag = player_hashtags_lcu.get(p_id, '')
             stats = p.get('stats', {})
             win = stats.get('win')
 
@@ -101,7 +115,7 @@ def process_game(game_id, blue_team_name, red_team_name, game_type, match_number
 
         data_row = {
             "team": current_team_name,
-            "player": name,
+            "player": _format_player_with_hashtag(name, hashtag),
             "win": "W" if win else "L",
             "side": str(side),
             "champion": champion_name,
